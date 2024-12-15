@@ -41,12 +41,19 @@ export const summaries = pgTable("summaries", {
 });
 
 // Relations
+// Define relations with proper typing and references
 export const entriesRelations = relations(entries, ({ many }) => ({
-  entryTags: many(entryTags)
+  entryTags: many(entryTags, {
+    fields: [entries.id],
+    references: [entryTags.entryId],
+  }),
 }));
 
 export const tagsRelations = relations(tags, ({ many }) => ({
-  entryTags: many(entryTags)
+  entryTags: many(entryTags, {
+    fields: [tags.id],
+    references: [entryTags.tagId],
+  }),
 }));
 
 export const entryTagsRelations = relations(entryTags, ({ one }) => ({

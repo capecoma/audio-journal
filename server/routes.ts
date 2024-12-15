@@ -144,7 +144,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add tags to entry
+  // Add or remove tag from entry
   app.post("/api/entries/:entryId/tags", async (req, res) => {
     try {
       const entryId = parseInt(req.params.entryId);
@@ -154,7 +154,13 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: "tagId must be a number" });
       }
 
-      // Check if the tag is already applied
+      // Verify entry exists
+      const [entry] = await db.select().from(entries).where(eq(entries.id, entryId)).limit(1);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      // Check if the tag is already applied to this specific entry
       const [existingTag] = await db
         .select()
         .from(entryTags)
@@ -165,28 +171,38 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (existingTag) {
-        // If tag exists, remove it (toggle behavior)
+        // If tag exists on this entry, remove it (toggle behavior)
         await db.delete(entryTags)
           .where(and(
             eq(entryTags.entryId, entryId),
             eq(entryTags.tagId, tagId)
           ));
       } else {
-        // If tag doesn't exist, add it
+        // If tag doesn't exist on this entry, add it
         await db.insert(entryTags)
           .values({ entryId, tagId });
       }
 
-      // Get updated tags for the entry
-      const tags = await db.query.entryTags.findMany({
-        where: eq(entryTags.entryId, entryId),
+      // Get updated entry with its tags
+      const updatedEntry = await db.query.entries.findFirst({
+        where: eq(entries.id, entryId),
         with: {
-          tag: true,
-        },
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
       });
 
-      res.json(tags.map(t => t.tag));
+      if (!updatedEntry) {
+        return res.status(404).json({ error: "Entry not found after update" });
+      }
+
+      // Return the updated tags for this specific entry
+      res.json(updatedEntry.entryTags?.map(et => et.tag) ?? []);
     } catch (error) {
+      console.error('Error updating entry tags:', error);
       res.status(500).json({ error: "Failed to update entry tags" });
     }
   });
