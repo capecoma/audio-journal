@@ -16,16 +16,28 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder.current = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 22050,
+          echoCancellation: true,
+          noiseSuppression: true,
+        }
+      });
+
+      mediaRecorder.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 32000
+      });
+      
       audioChunks.current = [];
 
       mediaRecorder.current.ondataavailable = (event) => {
         audioChunks.current.push(event.data);
       };
 
-      mediaRecorder.current.onstop = () => {
-        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+      mediaRecorder.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm;codecs=opus' });
         setIsProcessing(true);
         onRecordingComplete(audioBlob);
       };
