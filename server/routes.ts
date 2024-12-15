@@ -125,6 +125,10 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "User not found" });
       }
 
+      // Get entry count for free tier users
+      const entryCount = user.currentTier === 'free' ? await db.query.entries.count() : null;
+      const freeEntryLimit = 5;
+
       const now = new Date();
       const isTrialActive = user.trialEndDate && user.trialEndDate > now;
 
@@ -133,7 +137,9 @@ export function registerRoutes(app: Express): Server {
         isTrialActive,
         trialUsed: user.isTrialUsed,
         trialEndDate: user.trialEndDate,
-        trialStartDate: user.trialStartDate
+        trialStartDate: user.trialStartDate,
+        entryCount: entryCount,
+        entryLimit: user.currentTier === 'free' ? freeEntryLimit : null
       });
     } catch (error) {
       console.error('Error fetching trial status:', error);
