@@ -35,9 +35,9 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 w-full">
       <div className="flex items-center flex-1 space-x-4">
-        <div className="flex-1 max-w-md">
+        <div className="flex-1">
           <div className="relative h-2 bg-muted rounded-full overflow-hidden">
             <div 
               className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300"
