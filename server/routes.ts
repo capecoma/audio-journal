@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -75,21 +75,33 @@ export function registerRoutes(app: Express): Server {
 
       // Generate and save tags
       if (transcript) {
-        const generatedTags = await generateTags(transcript);
-        for (const tagName of generatedTags) {
-          // Create tag if it doesn't exist
-          const [tag] = await db.insert(tags)
-            .values({ name: tagName, userId: 1 })
-            .onConflictDoUpdate({
-              target: [tags.name, tags.userId],
-              set: { name: tagName },
-            })
-            .returning();
+        try {
+          const generatedTags = await generateTags(transcript);
+          
+          for (const tagName of generatedTags) {
+            // First try to find if the tag exists
+            let existingTag = await db.query.tags.findFirst({
+              where: (tags, { and, eq }) => and(
+                eq(tags.name, tagName),
+                eq(tags.userId, 1)
+              )
+            });
 
-          // Associate tag with entry
-          await db.insert(entryTags)
-            .values({ entryId: entry.id, tagId: tag.id })
-            .onConflictDoNothing();
+            // If tag doesn't exist, create it
+            if (!existingTag) {
+              [existingTag] = await db.insert(tags)
+                .values({ name: tagName, userId: 1 })
+                .returning();
+            }
+
+            // Associate tag with entry
+            await db.insert(entryTags)
+              .values({ entryId: entry.id, tagId: existingTag.id })
+              .onConflictDoNothing();
+          }
+        } catch (error) {
+          console.error('Error generating tags:', error);
+          // Continue with the entry creation even if tag generation fails
         }
       }
 

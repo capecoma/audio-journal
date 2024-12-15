@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, date, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 
@@ -14,7 +14,9 @@ export const tags = pgTable("tags", {
   name: text("name").notNull(),
   userId: integer("user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow()
-});
+}, (t) => ({
+  nameUserIdx: unique().on(t.name, t.userId),
+}));
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
