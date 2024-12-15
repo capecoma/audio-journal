@@ -55,17 +55,24 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Journal Entries</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportClick}
-              disabled={trialStatus?.currentTier === 'free'}
-              title={trialStatus?.currentTier === 'free' ? "Premium feature" : "Export entries"}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <div className="flex items-center gap-2">
+                {trialStatus?.currentTier === 'free' && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
+                    Premium
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportClick}
+                  disabled={trialStatus?.currentTier === 'free'}
+                  title={trialStatus?.currentTier === 'free' ? "Upgrade to export entries" : "Export entries"}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              </div>
           </div>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

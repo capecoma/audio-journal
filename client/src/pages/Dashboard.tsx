@@ -53,14 +53,41 @@ export default function Dashboard() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Audio Journal</h1>
         <div className="flex items-center gap-4">
-          {trialStatus?.currentTier === 'free' && (
-            <div className="text-sm">
-              <span className="text-muted-foreground">Free Plan: </span>
-              <span className="font-medium text-yellow-600">
-                {entries.length}/5 entries used
+          <div className="flex flex-col items-end text-sm">
+            {trialStatus?.currentTier === 'trial' ? (
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                  Trial Active
+                </span>
+                <span className="text-muted-foreground">
+                  {trialStatus.trialEndDate && 
+                    `Expires ${new Date(trialStatus.trialEndDate).toLocaleDateString()}`}
+                </span>
+              </div>
+            ) : trialStatus?.currentTier === 'free' ? (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
+                    Free Plan
+                  </span>
+                  <span className="font-medium text-yellow-600">
+                    {entries.length}/5 entries used
+                  </span>
+                </div>
+                <Button 
+                  variant="link" 
+                  className="text-xs h-auto p-0"
+                  onClick={() => setLocation("/trial")}
+                >
+                  Upgrade for unlimited entries
+                </Button>
+              </div>
+            ) : (
+              <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-200">
+                Premium Plan
               </span>
-            </div>
-          )}
+            )}
+          </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
