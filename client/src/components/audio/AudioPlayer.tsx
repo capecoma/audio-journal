@@ -26,9 +26,13 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
     setProgress(0);
   }, []);
 
-  const handlePlay = () => {
-    // If there's already an audio element playing, clean it up
-    cleanupAudio();
+  const togglePlayback = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering transcript dialog
+
+    if (isPlaying) {
+      cleanupAudio();
+      return;
+    }
 
     // Create a new audio element
     const audio = new Audio(audioUrl);
@@ -50,22 +54,25 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
   return (
     <div className="flex items-center gap-2">
       {transcript && (
-        <button
-          onClick={onTranscriptClick}
-          className="p-2 hover:bg-secondary rounded-full relative group"
-        >
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          {isPlaying && (
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-              <div ref={progressBarRef} className="h-[2px] w-8 bg-muted overflow-hidden">
-                <div 
-                  className="h-full bg-red-500 transition-all duration-100"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+        <div className="relative">
+          <button
+            onClick={onTranscriptClick}
+            className="p-2 hover:bg-secondary rounded-full"
+          >
+            <FileText 
+              className="h-4 w-4 text-muted-foreground" 
+              onClick={togglePlayback}
+            />
+          </button>
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8">
+            <div className="h-[2px] bg-muted overflow-hidden">
+              <div 
+                className="h-full bg-red-500 transition-all duration-100"
+                style={{ width: isPlaying ? `${progress}%` : '0%' }}
+              />
             </div>
-          )}
-        </button>
+          </div>
+        </div>
       )}
     </div>
   );
