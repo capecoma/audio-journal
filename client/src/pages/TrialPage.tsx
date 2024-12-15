@@ -5,13 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
+interface TrialStatus {
+  currentTier: 'free' | 'trial' | 'basic';
+  isTrialActive: boolean;
+  trialUsed: boolean;
+  trialEndDate: string | null;
+  trialStartDate: string | null;
+}
+
 export function TrialPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Get trial status
-  const { data: trialStatus, isLoading } = useQuery({
+  const { data: trialStatus, isLoading } = useQuery<TrialStatus>({
     queryKey: ['/api/trial/status'],
   });
 
