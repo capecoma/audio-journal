@@ -66,25 +66,30 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
       <Card className="h-[600px]">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Journal Entries</CardTitle>
+            <div className="space-y-1">
+              <CardTitle>Journal Entries</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Browse and search through your audio journal entries
+              </p>
+            </div>
             <div className="flex items-center gap-2">
-                {trialStatus?.currentTier === 'free' && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
-                    Premium
-                  </span>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportClick}
-                  disabled={trialStatus?.currentTier === 'free'}
-                  title={trialStatus?.currentTier === 'free' ? "Upgrade to export entries" : "Export entries"}
-                  className="gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-              </div>
+              {trialStatus?.currentTier === 'free' && (
+                <div className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">
+                  Premium Feature
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportClick}
+                disabled={trialStatus?.currentTier === 'free'}
+                title={trialStatus?.currentTier === 'free' ? "Upgrade to export entries" : "Export entries"}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </div>
           </div>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -97,46 +102,59 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[500px] pr-4">
-            <div className="space-y-4">
-              {entries.map((entry) => (
-                <Card key={entry.id} className="p-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        Duration: {Math.round(entry.duration! / 60)}min
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <AudioPlayer 
-                        audioUrl={entry.audioUrl} 
-                        duration={entry.duration ?? 0}
-                        onPlay={() => onPlay(entry)}
-                        onTranscriptClick={() => setSelectedTranscript({
-                          text: entry.transcript!,
-                          date: format(new Date(entry.createdAt!), "PPpp")
-                        })}
-                        transcript={entry.transcript}
-                      />
-                    </div>
-                  </div>
-                  {entry.transcript && (
-                    <>
-                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                        {entry.transcript}
-                      </p>
-                      <div className="mt-2">
-                        <TagList 
-                          entryTags={entry.entryTags?.map(et => et.tag) ?? []}
+          <ScrollArea className="h-[500px]">
+            <div className="space-y-4 pr-4">
+              {entries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="font-medium mb-2">No entries found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {searchQuery ? 
+                      "Try adjusting your search terms" : 
+                      "Start by recording your first journal entry"}
+                  </p>
+                </div>
+              ) : (
+                entries.map((entry) => (
+                  <Card key={entry.id} className="p-4 hover:bg-muted/50 transition-colors">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
+                            </span>
+                            <span className="text-sm px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              {Math.round(entry.duration! / 60)}min
+                            </span>
+                          </div>
+                        </div>
+                        <AudioPlayer 
+                          audioUrl={entry.audioUrl} 
+                          duration={entry.duration ?? 0}
+                          onPlay={() => onPlay(entry)}
+                          onTranscriptClick={() => setSelectedTranscript({
+                            text: entry.transcript!,
+                            date: format(new Date(entry.createdAt!), "PPpp")
+                          })}
+                          transcript={entry.transcript}
                         />
                       </div>
-                    </>
-                  )}
-                </Card>
-              ))}
+                      
+                      {entry.transcript && (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {entry.transcript}
+                          </p>
+                          <TagList 
+                            entryTags={entry.entryTags?.map(et => et.tag) ?? []}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))
+              )}
             </div>
           </ScrollArea>
         </CardContent>
@@ -147,7 +165,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
           <DialogHeader>
             <DialogTitle>Journal Entry - {selectedTranscript?.date}</DialogTitle>
           </DialogHeader>
-          <div className="mt-4 whitespace-pre-wrap text-sm">
+          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">
             {selectedTranscript?.text}
           </div>
         </DialogContent>
