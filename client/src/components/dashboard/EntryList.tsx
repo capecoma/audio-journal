@@ -42,8 +42,19 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
     if (trialStatus?.currentTier === 'free') {
       toast({
         title: "Premium Feature",
-        description: "Upgrade to export your journal entries",
+        description: trialStatus?.currentTier === 'free' && !trialStatus.trialUsed
+          ? "Start your free trial to export journal entries"
+          : "Upgrade to export your journal entries",
         variant: "default",
+        action: trialStatus?.currentTier === 'free' && !trialStatus.trialUsed
+          ? <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.href = '/trial'}
+            >
+              Start Trial
+            </Button>
+          : undefined
       });
       return;
     }

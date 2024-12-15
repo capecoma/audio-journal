@@ -61,23 +61,51 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
       return next();
     }
 
-    // For free tier users (including expired trials), check feature restrictions
-    const freeFeatures = [
-      '/api/entries', // Limited entries
-      '/api/entries/upload', // Basic upload
+    // Define feature access by tier
+    const tierFeatures = {
+      free: [
+        '/api/entries', // Limited entries
+        '/api/entries/upload', // Basic upload
+      ],
+      trial: [
+        '/api/entries/export',
+        '/api/summaries/daily',
+        '/api/trial/analytics'
+      ],
+      basic: [
+        '/api/entries/export',
+        '/api/summaries/daily'
+      ]
+    };
+
+    // Get allowed features for user's tier
+    const allowedFeatures = [
+      ...tierFeatures.free,
+      ...(user.currentTier === 'trial' ? tierFeatures.trial : []),
+      ...(user.currentTier === 'basic' ? tierFeatures.basic : [])
     ];
     
-    const isRestrictedFeature = !freeFeatures.some(path => req.path.startsWith(path));
+    const isRestrictedFeature = !allowedFeatures.some(path => req.path.startsWith(path));
     
     if (isRestrictedFeature) {
-      const message = !user.isTrialActive && user.trialEndDate
-        ? "Your trial has expired. Please upgrade to continue using premium features."
-        : "This feature requires a Basic subscription or active trial";
+      // Customize message based on user's situation
+      let message = "This feature requires a subscription upgrade.";
+      let detail = "";
+      
+      if (!user.isTrialActive && user.trialEndDate) {
+        message = "Your trial has expired.";
+        detail = "Please upgrade to continue using premium features.";
+      } else if (user.currentTier === 'free' && !user.isTrialUsed) {
+        message = "This is a premium feature.";
+        detail = "Start your free trial to access this feature.";
+      }
       
       return res.status(403).json({ 
         error: message,
+        detail,
         currentTier: user.currentTier,
-        trialExpired: user.trialEndDate ? new Date(user.trialEndDate) <= new Date() : false
+        trialExpired: user.trialEndDate ? new Date(user.trialEndDate) <= new Date() : false,
+        canStartTrial: user.currentTier === 'free' && !user.isTrialUsed
       });
     }
 
