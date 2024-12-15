@@ -20,26 +20,25 @@ async function checkAndUpdateTrialStatus(userId: number) {
   const trialEndDate = user.trialEndDate ? new Date(user.trialEndDate) : null;
   const isExpired = trialEndDate && trialEndDate <= now;
   
-  // Only update if currently in trial and it's expired
+  // Automatically downgrade expired trials
   if (user.currentTier === 'trial' && isExpired) {
-    await db.update(users)
+    const updatedUser = await db.update(users)
       .set({ currentTier: 'basic' })
-      .where(eq(users.id, userId));
-    
+      .where(eq(users.id, userId))
+      .returning()
+      .execute();
+
     return {
-      ...user,
-      currentTier: 'basic',
+      ...updatedUser[0],
       isTrialActive: false,
       trialEndDate: user.trialEndDate,
       trialStartDate: user.trialStartDate
     };
   }
 
-  // Return current state without modification
   return {
     ...user,
-    currentTier: user.currentTier,
-    isTrialActive: user.currentTier === 'trial' && trialEndDate && trialEndDate > now
+    isTrialActive: user.currentTier === 'trial' && !isExpired
   };
 }
 
@@ -47,100 +46,74 @@ async function checkAndUpdateTrialStatus(userId: number) {
 async function checkTrialStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = 1; // TODO: Get from auth
-    
-    // Use cached trial status if available within the same request
-    if (!req.app.locals.trialStatus || req.app.locals.trialStatusTime < Date.now() - 1000) {
-      req.app.locals.trialStatus = await checkAndUpdateTrialStatus(userId);
-      req.app.locals.trialStatusTime = Date.now();
-    }
-    
-    const user = req.app.locals.trialStatus;
-
-    // If user is on basic tier or active trial, allow access to all features
-    if (user.currentTier === 'basic' || user.isTrialActive) {
-      return next();
-    }
+    const user = await checkAndUpdateTrialStatus(userId);
 
     // Define feature access by tier
-    const tierFeatures = {
-      free: [
-        '/api/entries', // Limited entries
-        '/api/entries/upload', // Basic upload
-      ],
-      trial: [
+    const restrictedRoutes = {
+      // Routes that require trial or basic tier
+      premium: [
         '/api/entries/export',
         '/api/summaries/daily',
         '/api/trial/analytics'
       ],
-      basic: [
-        '/api/entries/export',
-        '/api/summaries/daily'
+      // Routes accessible by all tiers but with limits for free tier
+      limited: [
+        '/api/entries',
+        '/api/entries/upload'
       ]
     };
 
-    // Get allowed features for user's tier
-    const allowedFeatures = [
-      ...tierFeatures.free,
-      ...(user.currentTier === 'trial' ? tierFeatures.trial : []),
-      ...(user.currentTier === 'basic' ? tierFeatures.basic : [])
-    ];
-    
-    const isRestrictedFeature = !allowedFeatures.some(path => req.path.startsWith(path));
-    
-    if (isRestrictedFeature) {
-      // Customize message based on user's situation
-      let message = "This feature requires a subscription upgrade.";
-      let detail = "";
-      
-      if (!user.isTrialActive && user.trialEndDate) {
-        message = "Your trial has expired.";
-        detail = "Please upgrade to continue using premium features.";
-      } else if (user.currentTier === 'free' && !user.isTrialUsed) {
-        message = "This is a premium feature.";
-        detail = "Start your free trial to access this feature.";
-      }
-      
-      return res.status(403).json({ 
-        error: message,
-        detail,
-        currentTier: user.currentTier,
-        trialExpired: user.trialEndDate ? new Date(user.trialEndDate) <= new Date() : false,
-        canStartTrial: user.currentTier === 'free' && !user.isTrialUsed
+    // Check if accessing a premium route
+    const isPremiumRoute = restrictedRoutes.premium.some(route => req.path.startsWith(route));
+    const isLimitedRoute = restrictedRoutes.limited.some(route => req.path.startsWith(route));
+
+    // Block premium features for free tier
+    if (isPremiumRoute && user.currentTier === 'free') {
+      return res.status(403).json({
+        error: "Premium feature",
+        detail: !user.isTrialUsed ? 
+          "Start your free trial to access this feature" :
+          "Upgrade to access premium features",
+        canStartTrial: !user.isTrialUsed
       });
     }
 
-    // Apply free tier restrictions
-    if (user.currentTier === 'free' && req.path === '/api/entries') {
-      // Get current entry count
-      const entryCount = await db.query.entries.findMany({
-        where: eq(entries.userId, userId)
-      });
+    // Check free tier limits
+    if (isLimitedRoute && user.currentTier === 'free') {
+      const entryCount = await db.select().from(entries)
+        .where(eq(entries.userId, userId));
 
-      // Block new uploads if limit reached
-      if (req.method === 'POST' && entryCount.length >= 5) {
+      if (entryCount.length >= 5 && req.method === 'POST') {
         return res.status(403).json({
           error: "Free tier limit reached",
-          detail: "You've reached the limit of 5 entries for free tier users",
+          detail: "You've reached the limit of 5 entries. Start your trial or upgrade to create more.",
           canStartTrial: !user.isTrialUsed
         });
       }
-
-      // Limit entries returned for GET requests
-      if (req.method === 'GET') {
-        req.query.limit = '5';
-      }
     }
 
-    return next();
+    // Store user status in request for route handlers
+    req.app.locals.userTier = {
+      currentTier: user.currentTier,
+      isTrialActive: user.isTrialActive,
+      trialEndDate: user.trialEndDate,
+      trialStartDate: user.trialStartDate,
+      isTrialUsed: user.isTrialUsed
+    };
+
+    next();
   } catch (error) {
     console.error('Error checking trial status:', error);
-    return res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Clear route handler cache on startup
+  app._router = undefined;
+  
   // Apply trial status middleware to all API routes
   app.use('/api', checkTrialStatus);
 
@@ -207,28 +180,11 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: "Failed to fetch trial status" });
     }
   });
+
   // Get entries for the current user with optional search
-  app.get("/api/entries", checkTrialStatus, async (req, res) => {
+  app.get("/api/entries", async (req, res) => {
     try {
       const { search } = req.query;
-      const queryConfig = {
-        orderBy: [desc(entries.createdAt)],
-        with: {
-          entryTags: {
-            with: {
-              tag: true
-            }
-          }
-        }
-      };
-
-      const finalQuery = search && typeof search === 'string'
-        ? db.query.entries.findMany({
-            ...queryConfig,
-            where: (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`),
-          })
-        : db.query.entries.findMany(queryConfig);
-
       const userEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
@@ -256,10 +212,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
-      if (!req.file || !req.file.buffer) {
-        return res.status(400).json({ error: "No audio data received" });
-      }
-
       const audioBuffer = req.file.buffer;
       const duration = 0; // We'll get this from the audio file later
 
@@ -270,7 +222,7 @@ export function registerRoutes(app: Express): Server {
       let transcript;
       try {
         transcript = await transcribeAudio(audioBuffer);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Transcription error:", error);
         return res.status(400).json({ error: error.message });
       }
@@ -280,7 +232,7 @@ export function registerRoutes(app: Express): Server {
         audioUrl,
         transcript,
         duration,
-        userId: 1, // For now, we'll use a default user ID
+        userId: 1, // TODO: Get from auth
       }).returning();
 
       // Generate and save tags
@@ -299,9 +251,10 @@ export function registerRoutes(app: Express): Server {
 
             // If tag doesn't exist, create it
             if (!existingTag) {
-              [existingTag] = await db.insert(tags)
+              const [newTag] = await db.insert(tags)
                 .values({ name: tagName, userId: 1 })
                 .returning();
+              existingTag = newTag;
             }
 
             // Associate tag with entry
@@ -358,7 +311,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Tag management endpoints
-  app.get("/api/tags", async (req, res) => {
+  app.get("/api/tags", async (_req, res) => {
     try {
       const userTags = await db.query.tags.findMany({
         orderBy: desc(tags.createdAt),
@@ -369,115 +322,11 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/tags", async (req, res) => {
-    try {
-      const { name } = req.body;
-      if (!name) {
-        return res.status(400).json({ error: "Tag name is required" });
-      }
-
-      const [tag] = await db.insert(tags)
-        .values({ name, userId: 1 })
-        .returning();
-      
-      res.json(tag);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create tag" });
-    }
-  });
-
-  // Add or remove tag from entry
-  app.post("/api/entries/:entryId/tags", async (req, res) => {
-    try {
-      const entryId = parseInt(req.params.entryId);
-      const { tagId } = req.body;
-
-      if (typeof tagId !== 'number') {
-        return res.status(400).json({ error: "tagId must be a number" });
-      }
-
-      // Verify entry exists
-      const [entry] = await db.select().from(entries).where(eq(entries.id, entryId)).limit(1);
-      if (!entry) {
-        return res.status(404).json({ error: "Entry not found" });
-      }
-
-      // Check if the tag is already applied to this specific entry
-      const [existingTag] = await db
-        .select()
-        .from(entryTags)
-        .where(and(
-          eq(entryTags.entryId, entryId),
-          eq(entryTags.tagId, tagId)
-        ))
-        .limit(1);
-
-      if (existingTag) {
-        // If tag exists on this entry, remove it (toggle behavior)
-        await db.delete(entryTags)
-          .where(and(
-            eq(entryTags.entryId, entryId),
-            eq(entryTags.tagId, tagId)
-          ));
-      } else {
-        // If tag doesn't exist on this entry, add it
-        await db.insert(entryTags)
-          .values({ entryId, tagId });
-      }
-
-      // Get updated entry with its tags
-      const updatedEntry = await db.query.entries.findFirst({
-        where: eq(entries.id, entryId),
-        with: {
-          entryTags: {
-            with: {
-              tag: true
-            }
-          }
-        }
-      });
-
-      if (!updatedEntry) {
-        return res.status(404).json({ error: "Entry not found after update" });
-      }
-
-      // Return the updated tags for this specific entry
-      res.json(updatedEntry.entryTags?.map(et => et.tag) ?? []);
-    } catch (error) {
-      console.error('Error updating entry tags:', error);
-      res.status(500).json({ error: "Failed to update entry tags" });
-    }
-  });
-
-  // Get entry tags
-  app.get("/api/entries/:entryId/tags", async (req, res) => {
-    try {
-      const entryId = parseInt(req.params.entryId);
-      const entryTags = await db.query.entryTags.findMany({
-        where: eq(entryTags.entryId, entryId),
-        with: {
-          tag: {
-            columns: {
-              id: true,
-              name: true,
-              userId: true,
-              createdAt: true
-            }
-          }
-        },
-      });
-
-      res.json(entryTags.map(et => et.tag));
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch entry tags" });
-    }
-  });
-
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
       const entries = await db.query.entries.findMany({
-        orderBy: (entries) => [desc(entries.createdAt)],
+        orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
             with: {
@@ -488,7 +337,7 @@ export function registerRoutes(app: Express): Server {
       });
 
       const exportData = entries.map(entry => ({
-        date: new Date(entry.createdAt).toLocaleString(),
+        date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
         audioUrl: entry.audioUrl,
