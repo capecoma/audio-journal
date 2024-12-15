@@ -122,13 +122,24 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "User not found" });
       }
 
+      const now = new Date();
+      
+      // Check if trial has expired and update status
+      if (user.currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) <= now) {
+        await db.update(users)
+          .set({ currentTier: 'basic' })
+          .where(eq(users.id, userId));
+        user.currentTier = 'basic';
+      }
+
       // Get entry count for free tier users
       const userEntries = await db.select().from(entries).where(eq(entries.userId, userId));
       const entryCount = user.currentTier === 'free' ? userEntries.length : null;
       const freeEntryLimit = 5;
 
-      const now = new Date();
-      const isTrialActive = user.trialEndDate && user.trialEndDate > now;
+      const isTrialActive = user.currentTier === 'trial' && 
+                          user.trialEndDate && 
+                          new Date(user.trialEndDate) > now;
 
       res.json({
         currentTier: user.currentTier,
