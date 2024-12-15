@@ -23,7 +23,7 @@ interface EntryListProps {
 }
 
 export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
-  const [selectedTranscript, setSelectedTranscript] = useState<{ text: string; date: string } | null>(null);
+  const [selectedTranscript, setSelectedTranscript] = useState<{ text: string | undefined; date: string } | null>(null);
 
   return (
     <>
@@ -68,7 +68,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                     <div className="flex gap-2">
                       <AudioPlayer 
                         audioUrl={entry.audioUrl} 
-                        duration={entry.duration}
+                        duration={entry.duration ?? 0}
                         onPlay={() => onPlay(entry)}
                         onTranscriptClick={() => setSelectedTranscript({
                           text: entry.transcript!,

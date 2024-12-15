@@ -156,7 +156,19 @@ export function registerRoutes(app: Express): Server {
           })
         : db.query.entries.findMany(queryConfig);
 
-      const userEntries = await finalQuery;
+      const userEntries = await db.query.entries.findMany({
+        orderBy: [desc(entries.createdAt)],
+        with: {
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        },
+        where: search && typeof search === 'string' 
+          ? (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`)
+          : undefined
+      });
       res.json(userEntries);
     } catch (error) {
       console.error('Error fetching entries:', error);
@@ -371,7 +383,14 @@ export function registerRoutes(app: Express): Server {
       const entryTags = await db.query.entryTags.findMany({
         where: eq(entryTags.entryId, entryId),
         with: {
-          tag: true,
+          tag: {
+            columns: {
+              id: true,
+              name: true,
+              userId: true,
+              createdAt: true
+            }
+          }
         },
       });
 
