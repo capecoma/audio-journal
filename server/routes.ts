@@ -6,30 +6,42 @@ import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 
+// Function to check and update trial status
+async function checkAndUpdateTrialStatus(userId: number) {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId)
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const now = new Date();
+  let currentTier = user.currentTier;
+  
+  // Check if trial has expired and update tier if needed
+  if (currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) <= now) {
+    await db.update(users)
+      .set({ currentTier: 'basic' })
+      .where(eq(users.id, userId));
+    currentTier = 'basic';
+  }
+
+  return {
+    ...user,
+    currentTier,
+    isTrialActive: currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) > now
+  };
+}
+
 // Middleware to check trial status
 async function checkTrialStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = 1; // TODO: Get from auth
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId)
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Check if trial has expired and update tier if needed
-    const now = new Date();
-    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate <= now) {
-      await db.update(users)
-        .set({ currentTier: 'basic' }) // After trial expires, move to basic tier
-        .where(eq(users.id, userId));
-      user.currentTier = 'basic';
-    }
+    const user = await checkAndUpdateTrialStatus(userId);
 
     // If user is on basic tier or active trial, allow access to all features
-    if (user.currentTier === 'basic' || 
-        (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > now)) {
+    if (user.currentTier === 'basic' || user.isTrialActive) {
       return next();
     }
 
@@ -42,20 +54,19 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
     const isRestrictedFeature = !freeFeatures.some(path => req.path.startsWith(path));
     
     if (isRestrictedFeature) {
-      const message = user.trialEndDate && user.trialEndDate <= new Date()
+      const message = !user.isTrialActive && user.trialEndDate
         ? "Your trial has expired. Please upgrade to continue using premium features."
         : "This feature requires a Basic subscription or active trial";
       
       return res.status(403).json({ 
         error: message,
         currentTier: user.currentTier,
-        trialExpired: user.trialEndDate ? user.trialEndDate <= new Date() : false
+        trialExpired: user.trialEndDate ? new Date(user.trialEndDate) <= new Date() : false
       });
     }
 
     // Apply free tier restrictions
     if (req.path === '/api/entries') {
-      // Limit to last 5 entries for free tier
       const now = new Date();
       const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
       req.query.limit = '5';
@@ -114,36 +125,16 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/trial/status", async (req, res) => {
     try {
       const userId = 1; // TODO: Get from auth
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, userId)
-      });
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const now = new Date();
-      
-      // Check if trial has expired and update status
-      if (user.currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) <= now) {
-        await db.update(users)
-          .set({ currentTier: 'basic' })
-          .where(eq(users.id, userId));
-        user.currentTier = 'basic';
-      }
+      const user = await checkAndUpdateTrialStatus(userId);
 
       // Get entry count for free tier users
       const userEntries = await db.select().from(entries).where(eq(entries.userId, userId));
       const entryCount = user.currentTier === 'free' ? userEntries.length : null;
       const freeEntryLimit = 5;
 
-      const isTrialActive = user.currentTier === 'trial' && 
-                          user.trialEndDate && 
-                          new Date(user.trialEndDate) > now;
-
       res.json({
         currentTier: user.currentTier,
-        isTrialActive,
+        isTrialActive: user.isTrialActive,
         trialUsed: user.isTrialUsed,
         trialEndDate: user.trialEndDate,
         trialStartDate: user.trialStartDate,
