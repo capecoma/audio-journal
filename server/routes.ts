@@ -19,20 +19,17 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
     }
 
     // Check if trial has expired and update tier if needed
-    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate <= new Date()) {
+    const now = new Date();
+    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate <= now) {
       await db.update(users)
-        .set({ currentTier: 'free' })
+        .set({ currentTier: 'basic' }) // After trial expires, move to basic tier
         .where(eq(users.id, userId));
-      user.currentTier = 'free';
+      user.currentTier = 'basic';
     }
 
-    // If trial is active, allow access to all features
-    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > new Date()) {
-      return next();
-    }
-
-    // If user is on basic tier or trial, allow access to all features
-    if (user.currentTier === 'basic' || (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > new Date())) {
+    // If user is on basic tier or active trial, allow access to all features
+    if (user.currentTier === 'basic' || 
+        (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > now)) {
       return next();
     }
 
