@@ -6,6 +6,7 @@ export default function TrialNav() {
   const [location] = useLocation();
 
   const items = [
+    { href: "/", label: "← Back to Dashboard" },
     { href: "/trial", label: "Trial Status" },
     { href: "/trial/analytics", label: "Analytics" },
   ];
