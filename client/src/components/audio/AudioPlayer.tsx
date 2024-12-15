@@ -1,17 +1,14 @@
-import { useState } from 'react';
 import { FileText } from 'lucide-react';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  progress: number;
   duration?: number;
   onTranscriptClick: () => void;
   transcript?: string;
 }
 
-export default function AudioPlayer({ audioUrl, duration = 0, onTranscriptClick, transcript }: AudioPlayerProps) {
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-
+export default function AudioPlayer({ audioUrl, progress, duration = 0, onTranscriptClick, transcript }: AudioPlayerProps) {
   const formatDuration = (timeInSeconds: number) => {
     if (timeInSeconds < 60) {
       return `${Math.round(timeInSeconds)}s`;
@@ -24,15 +21,15 @@ export default function AudioPlayer({ audioUrl, duration = 0, onTranscriptClick,
   return (
     <div className="flex items-center gap-4">
       <div className="flex items-center flex-1">
-        <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+        <div className="relative w-32 h-2 bg-muted rounded-full overflow-hidden">
           <div 
-            className="h-full bg-red-500"
+            className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
 
-        <span className="ml-2 text-xs text-muted-foreground min-w-[3ch]">
-          {formatDuration(currentTime)}
+        <span className="ml-2 text-xs text-muted-foreground">
+          {formatDuration(duration)}
         </span>
       </div>
       
