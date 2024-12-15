@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, Play, Pause } from 'lucide-react';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -13,7 +13,6 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
 
   const cleanupAudio = useCallback(() => {
     if (audioRef.current) {
@@ -26,9 +25,7 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
     setProgress(0);
   }, []);
 
-  const togglePlayback = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering transcript dialog
-
+  const togglePlayback = () => {
     if (isPlaying) {
       cleanupAudio();
       return;
@@ -53,26 +50,32 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
 
   return (
     <div className="flex items-center gap-2">
-      {transcript && (
-        <div className="relative">
-          <button
-            onClick={onTranscriptClick}
-            className="p-2 hover:bg-secondary rounded-full"
-          >
-            <FileText 
-              className="h-4 w-4 text-muted-foreground" 
-              onClick={togglePlayback}
+      <button
+        onClick={togglePlayback}
+        className="p-2 hover:bg-secondary rounded-full relative"
+      >
+        {isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8">
+          <div className="h-[2px] bg-muted overflow-hidden">
+            <div 
+              className="h-full bg-red-500 transition-all duration-100"
+              style={{ width: isPlaying ? `${progress}%` : '0%' }}
             />
-          </button>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8">
-            <div className="h-[2px] bg-muted overflow-hidden">
-              <div 
-                className="h-full bg-red-500 transition-all duration-100"
-                style={{ width: isPlaying ? `${progress}%` : '0%' }}
-              />
-            </div>
           </div>
         </div>
+      </button>
+      
+      {transcript && (
+        <button
+          onClick={onTranscriptClick}
+          className="p-2 hover:bg-secondary rounded-full"
+        >
+          <FileText className="h-4 w-4 text-muted-foreground" />
+        </button>
       )}
     </div>
   );
