@@ -1,5 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { desc } from "drizzle-orm";
+import { db } from "@db";
+import { entries } from "@db/schema";
 import multer from "multer";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags } from "@db/schema";
@@ -256,13 +259,11 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
-      const userEntries = await db.query.entries.findMany({
-        orderBy: [desc(entries.createdAt)],
+      const entries = await db.query.entries.findMany({
+        orderBy: (entries) => [desc(entries.createdAt)],
         with: {
           entryTags: {
             with: {
@@ -272,18 +273,18 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = userEntries.map(entry => ({
-        date: new Date(entry.createdAt!).toLocaleString(),
-        transcript: entry.transcript,
-        tags: entry.entryTags?.map(et => et.tag.name),
+      const exportData = entries.map(entry => ({
+        date: new Date(entry.createdAt).toLocaleString(),
+        transcript: entry.transcript ?? 'No transcript available',
+        tags: entry.entryTags?.map(et => et.tag.name) ?? [],
         audioUrl: entry.audioUrl,
-        duration: entry.duration
+        duration: entry.duration ?? 0
       }));
 
       const exportContent = exportData.map(entry => `
 Date: ${entry.date}
-Duration: ${Math.round(entry.duration! / 60)} minutes
-Tags: ${entry.tags?.join(', ') || 'No tags'}
+Duration: ${Math.round(entry.duration / 60)} minutes
+Tags: ${entry.tags.join(', ') || 'No tags'}
 
 ${entry.transcript}
 
@@ -295,8 +296,10 @@ ${entry.transcript}
       res.send(exportContent);
     } catch (error) {
       console.error('Error exporting entries:', error);
-      res.status(500).json({ error: "Failed to export entries" });
+      res.status(500).json({ message: "Failed to export entries" });
     }
   });
 
+  const httpServer = createServer(app);
+  return httpServer;
 }
