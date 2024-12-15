@@ -37,6 +37,31 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   }
 }
 
+export async function generateTags(transcript: string): Promise<string[]> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are a text analysis expert. Generate 2-4 relevant tags for the given text. Focus on themes, emotions, or key topics mentioned. Return the tags as a JSON array of strings.",
+        },
+        {
+          role: "user",
+          content: transcript,
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    return result.tags || [];
+  } catch (error) {
+    console.error("Tag generation error:", error);
+    throw new Error("Failed to generate tags");
+  }
+}
+
 export async function generateSummary(transcripts: string[]): Promise<string> {
   try {
     const prompt = `Generate a concise summary of these journal entries, highlighting key themes and important points:

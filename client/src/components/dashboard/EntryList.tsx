@@ -12,7 +12,7 @@ interface EntryListProps {
   onPlay: (entry: Entry) => void;
   onSearch: (query: string) => void;
   searchQuery: string;
-  onTagSelect: (entryId: number, tagId: number) => void;
+  
 }
 
 export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTagSelect }: EntryListProps) {
@@ -65,9 +65,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTa
                     </p>
                     <div className="mt-2">
                       <TagList 
-                        entryId={entry.id}
                         entryTags={entry.entryTags?.map(et => et.tag) ?? []}
-                        onTagSelect={(tagId) => onTagSelect(entry.id, tagId)}
                       />
                     </div>
                   </>

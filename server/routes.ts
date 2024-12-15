@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags } from "@db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { transcribeAudio, generateSummary } from "./ai";
+import { eq, desc } from "drizzle-orm";
+import { transcribeAudio, generateSummary, generateTags } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -72,6 +72,26 @@ export function registerRoutes(app: Express): Server {
         duration,
         userId: 1, // For now, we'll use a default user ID
       }).returning();
+
+      // Generate and save tags
+      if (transcript) {
+        const generatedTags = await generateTags(transcript);
+        for (const tagName of generatedTags) {
+          // Create tag if it doesn't exist
+          const [tag] = await db.insert(tags)
+            .values({ name: tagName, userId: 1 })
+            .onConflictDoUpdate({
+              target: [tags.name, tags.userId],
+              set: { name: tagName },
+            })
+            .returning();
+
+          // Associate tag with entry
+          await db.insert(entryTags)
+            .values({ entryId: entry.id, tagId: tag.id })
+            .onConflictDoNothing();
+        }
+      }
 
       // Generate daily summary
       const today = new Date();
