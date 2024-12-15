@@ -37,14 +37,16 @@ export function TrialAnalytics() {
 
   return (
     <div className="container mx-auto p-8">
-      <Button
-        variant="ghost"
-        onClick={() => setLocation("/trial")}
-        className="mb-8"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Trial Status
-      </Button>
+      <div className="flex justify-between items-center mb-8">
+        <Button
+          variant="ghost"
+          onClick={() => setLocation("/trial")}
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Trial Status
+        </Button>
+      </div>
 
       <div className="grid gap-8">
         <Card>
