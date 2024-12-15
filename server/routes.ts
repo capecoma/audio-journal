@@ -67,14 +67,16 @@ export function registerRoutes(app: Express): Server {
       const summaryText = await generateSummary(transcripts as string[]);
 
       // Update or create daily summary
-      await db.insert(summaries).values({
-        userId: 1,
-        date: today,
-        highlightText: summaryText,
-      }).onConflictDoUpdate({
-        target: [summaries.userId, summaries.date],
-        set: { highlightText: summaryText },
-      });
+      await db.insert(summaries)
+        .values({
+          userId: 1,
+          date: today.toISOString(),
+          highlightText: summaryText,
+        })
+        .onConflictDoUpdate({
+          target: [summaries.userId, summaries.date],
+          set: { highlightText: summaryText },
+        });
 
       res.json(entry);
     } catch (error: any) {
