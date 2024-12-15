@@ -323,8 +323,21 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Export entries endpoint
-  app.get("/api/entries/export", async (_req, res) => {
+  app.get("/api/entries/export", async (req, res) => {
     try {
+      const userTier = req.app.locals.userTier;
+      
+      // Block export for free tier users
+      if (userTier.currentTier === 'free') {
+        return res.status(403).json({
+          error: "Premium feature",
+          detail: !userTier.isTrialUsed ? 
+            "Start your free trial to export entries" :
+            "Upgrade to export your journal entries",
+          canStartTrial: !userTier.isTrialUsed
+        });
+      }
+
       const userEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
