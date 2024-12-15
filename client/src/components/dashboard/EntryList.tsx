@@ -63,7 +63,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTa
                     <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
                       {entry.transcript}
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-1">
+                    <div className="mt-2">
                       <TagList 
                         entryId={entry.id}
                         onTagSelect={(tagId) => onTagSelect(entry.id, tagId)}

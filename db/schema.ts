@@ -42,11 +42,11 @@ export const summaries = pgTable("summaries", {
 
 // Relations
 export const entriesRelations = relations(entries, ({ many }) => ({
-  tags: many(entryTags)
+  entryTags: many(entryTags)
 }));
 
 export const tagsRelations = relations(tags, ({ many }) => ({
-  entries: many(entryTags)
+  entryTags: many(entryTags)
 }));
 
 export const entryTagsRelations = relations(entryTags, ({ one }) => ({

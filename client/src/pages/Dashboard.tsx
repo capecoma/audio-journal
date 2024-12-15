@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
 import type { Entry, Summary } from "@db/schema";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
     queryFn: async () => {
@@ -29,7 +33,13 @@ export default function Dashboard() {
 
   const handlePlayEntry = (entry: Entry) => {
     const audio = new Audio(entry.audioUrl);
-    audio.play();
+    audio.play().catch(error => {
+      toast({
+        title: "Error",
+        description: "Failed to play audio: " + error.message,
+        variant: "destructive",
+      });
+    });
   };
 
   const handleTagSelect = async (entryId: number, tagId: number) => {
@@ -44,7 +54,7 @@ export default function Dashboard() {
         throw new Error("Failed to update entry tags");
       }
 
-      // Invalidate the queries for this specific entry's tags
+      // Invalidate only the specific entry's tags
       queryClient.invalidateQueries({ queryKey: ["/api/entries", entryId, "tags"] });
     } catch (error: any) {
       toast({

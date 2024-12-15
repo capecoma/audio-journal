@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { SelectTag } from "@db/schema";
 
 interface TagListProps {
@@ -14,12 +15,13 @@ interface TagListProps {
 export default function TagList({ entryId, onTagSelect }: TagListProps) {
   const [newTagName, setNewTagName] = useState("");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const { data: tags = [] } = useQuery<SelectTag[]>({
+  const { data: tags = [], isLoading: isLoadingTags } = useQuery<SelectTag[]>({
     queryKey: ["/api/tags"],
   });
 
-  const { data: entryTags = [] } = useQuery<SelectTag[]>({
+  const { data: entryTags = [], isLoading: isLoadingEntryTags } = useQuery<SelectTag[]>({
     queryKey: ["/api/entries", entryId, "tags"],
   });
 
@@ -40,6 +42,17 @@ export default function TagList({ entryId, onTagSelect }: TagListProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tags"] });
       setNewTagName("");
+      toast({
+        title: "Success",
+        description: "Tag created successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -49,6 +62,10 @@ export default function TagList({ entryId, onTagSelect }: TagListProps) {
     await createTagMutation.mutateAsync(newTagName.trim());
   };
 
+  if (isLoadingTags || isLoadingEntryTags) {
+    return <div>Loading tags...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <form onSubmit={handleCreateTag} className="flex gap-2">
@@ -57,7 +74,7 @@ export default function TagList({ entryId, onTagSelect }: TagListProps) {
           value={newTagName}
           onChange={(e) => setNewTagName(e.target.value)}
         />
-        <Button type="submit" size="icon">
+        <Button type="submit" size="icon" disabled={createTagMutation.isPending}>
           <Plus className="h-4 w-4" />
         </Button>
       </form>
