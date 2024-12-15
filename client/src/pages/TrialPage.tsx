@@ -58,9 +58,30 @@ export function TrialPage() {
                 Current Tier: {trialStatus?.currentTier}
               </p>
               {trialStatus?.isTrialActive && (
-                <p className="text-sm text-muted-foreground">
-                  Trial ends on: {new Date(trialStatus.trialEndDate).toLocaleDateString()}
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Trial ends on: {new Date(trialStatus.trialEndDate).toLocaleDateString()}
+                  </p>
+                  {(() => {
+                    const now = new Date();
+                    const endDate = new Date(trialStatus.trialEndDate);
+                    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysLeft <= 2) {
+                      return (
+                        <div className="p-4 rounded-md bg-yellow-50 border border-yellow-200">
+                          <p className="text-sm font-medium text-yellow-800">
+                            Trial expires in {daysLeft} {daysLeft === 1 ? 'day' : 'days'}!
+                          </p>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            Upgrade to continue enjoying premium features.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
               )}
             </div>
             
