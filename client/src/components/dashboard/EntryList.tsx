@@ -116,15 +116,15 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <Card key={entry.id} className="p-4 hover:bg-muted/50 transition-colors">
+                  <Card key={entry.id} className="p-6 hover:bg-muted/50 transition-colors">
                     <div className="space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium whitespace-nowrap">
                               {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
                             </span>
-                            <span className="text-sm px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            <span className="text-sm px-2.5 py-1 rounded-full bg-primary/10 text-primary whitespace-nowrap">
                               {Math.round(entry.duration! / 60)}min
                             </span>
                           </div>
@@ -142,8 +142,8 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                       </div>
                       
                       {entry.transcript && (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground line-clamp-2">
+                        <div className="space-y-3">
+                          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words">
                             {entry.transcript}
                           </p>
                           <TagList 

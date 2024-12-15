@@ -130,14 +130,18 @@ export default function Dashboard() {
           </div>
 
           {/* Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <EntryList 
-              entries={entries} 
-              onPlay={handlePlayEntry}
-              onSearch={setSearchQuery}
-              searchQuery={searchQuery}
-            />
-            <DailySummary summaries={summaries} />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="min-w-0">
+              <EntryList 
+                entries={entries} 
+                onPlay={handlePlayEntry}
+                onSearch={setSearchQuery}
+                searchQuery={searchQuery}
+              />
+            </div>
+            <div className="min-w-0">
+              <DailySummary summaries={summaries} />
+            </div>
           </div>
         </div>
       </main>
