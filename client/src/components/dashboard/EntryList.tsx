@@ -1,19 +1,31 @@
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Play, FileText } from "lucide-react";
+import { Play, FileText, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { Entry } from "@db/schema";
 
 interface EntryListProps {
   entries: Entry[];
   onPlay: (entry: Entry) => void;
+  onSearch: (query: string) => void;
+  searchQuery: string;
 }
 
-export default function EntryList({ entries, onPlay }: EntryListProps) {
+export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
   return (
     <Card className="h-[600px]">
       <CardHeader>
         <CardTitle>Journal Entries</CardTitle>
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search transcripts..."
+            value={searchQuery}
+            onChange={(e) => onSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[500px] pr-4">

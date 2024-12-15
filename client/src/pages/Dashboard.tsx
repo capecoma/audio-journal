@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,8 +8,20 @@ import DailySummary from "@/components/dashboard/DailySummary";
 import type { Entry, Summary } from "@db/schema";
 
 export default function Dashboard() {
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const { data: entries = [] } = useQuery<Entry[]>({
-    queryKey: ["/api/entries"],
+    queryKey: ["/api/entries", searchQuery],
+    queryFn: async () => {
+      const url = searchQuery
+        ? `/api/entries?search=${encodeURIComponent(searchQuery)}`
+        : "/api/entries";
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch entries");
+      }
+      return response.json();
+    },
   });
 
   const { data: summaries = [] } = useQuery<Summary[]>({
@@ -33,7 +46,12 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <EntryList entries={entries} onPlay={handlePlayEntry} />
+        <EntryList 
+          entries={entries} 
+          onPlay={handlePlayEntry}
+          onSearch={setSearchQuery}
+          searchQuery={searchQuery}
+        />
         <DailySummary summaries={summaries} />
       </div>
     </div>

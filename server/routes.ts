@@ -9,12 +9,22 @@ import { transcribeAudio, generateSummary } from "./ai";
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
-  // Get all entries for the current user
-  app.get("/api/entries", async (_req, res) => {
+  // Get entries for the current user with optional search
+  app.get("/api/entries", async (req, res) => {
     try {
-      const userEntries = await db.query.entries.findMany({
+      const { search } = req.query;
+      let query = db.query.entries.findMany({
         orderBy: desc(entries.createdAt),
       });
+
+      if (search && typeof search === 'string') {
+        query = db.query.entries.findMany({
+          where: (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`),
+          orderBy: desc(entries.createdAt),
+        });
+      }
+
+      const userEntries = await query;
       res.json(userEntries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch entries" });
