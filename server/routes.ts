@@ -126,7 +126,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Get entry count for free tier users
-      const entryCount = user.currentTier === 'free' ? await db.query.entries.count() : null;
+      const entries = await db.select().from(entries).where(eq(entries.userId, userId));
+      const entryCount = user.currentTier === 'free' ? entries.length : null;
       const freeEntryLimit = 5;
 
       const now = new Date();
