@@ -1,4 +1,6 @@
-import { FileText } from 'lucide-react';
+import { FileText, Volume2, VolumeX } from 'lucide-react';
+import { Slider } from "@/components/ui/slider";
+import { useState, useRef, useEffect } from 'react';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -9,6 +11,15 @@ interface AudioPlayerProps {
 }
 
 export default function AudioPlayer({ audioUrl, progress, duration = 0, onTranscriptClick, transcript }: AudioPlayerProps) {
+  const [volume, setVolume] = useState(100);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume / 100;
+    }
+  }, [volume]);
+
   const formatDuration = (timeInSeconds: number) => {
     if (timeInSeconds < 60) {
       return `${Math.round(timeInSeconds)}s`;
@@ -16,6 +27,10 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.round(timeInSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    setVolume(value[0]);
   };
 
   return (
@@ -31,6 +46,21 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
         <span className="ml-2 text-xs text-muted-foreground">
           {formatDuration(duration)}
         </span>
+
+        <div className="flex items-center ml-4 gap-2">
+          {volume === 0 ? (
+            <VolumeX className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+          )}
+          <Slider
+            value={[volume]}
+            onValueChange={handleVolumeChange}
+            max={100}
+            step={1}
+            className="w-24"
+          />
+        </div>
       </div>
       
       {transcript && (
@@ -42,6 +72,8 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
           <FileText className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
+      
+      <audio ref={audioRef} src={audioUrl} className="hidden" />
     </div>
   );
 }
