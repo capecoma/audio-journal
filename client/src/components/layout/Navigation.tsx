@@ -14,24 +14,26 @@ export default function Navigation() {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 z-30 h-full w-[200px] border-r bg-sidebar shadow-sm">
+    <aside className="fixed left-0 top-0 z-30 h-full w-[240px] border-r border-primary/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <ScrollArea className="h-full w-full">
-        <div className="space-y-6 py-6">
-          <div className="px-3">
-            <h2 className="mb-4 px-4 text-lg font-semibold tracking-tight text-sidebar-foreground">
+        <div className="space-y-8 py-8">
+          <div className="px-4">
+            <h2 className="mb-6 px-2 text-xl font-semibold tracking-tight text-primary/90">
               Audio Journal
             </h2>
-            <div className="space-y-1">
+            <div className="space-y-2">
               {navItems.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href}>
                   <Button
                     variant={location === href ? "secondary" : "ghost"}
                     className={cn(
-                      "w-full justify-start transition-all duration-200 hover:bg-sidebar-accent/80",
-                      location === href ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                      "w-full justify-start text-base transition-all duration-200",
+                      location === href 
+                        ? "bg-primary/10 text-primary font-medium shadow-sm" 
+                        : "text-primary/60 hover:text-primary hover:bg-primary/5"
                     )}
                   >
-                    <Icon className="mr-2 h-4 w-4" />
+                    <Icon className="mr-3 h-5 w-5" />
                     {label}
                   </Button>
                 </Link>
