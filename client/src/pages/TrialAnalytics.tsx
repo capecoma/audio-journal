@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import TrialNav from "@/components/trial/TrialNav";
 
 interface FeatureUsage {
   feature: string;
@@ -18,7 +18,7 @@ interface TrialAnalytics {
 }
 
 export function TrialAnalytics() {
-  const [, setLocation] = useLocation();
+  
   
   const { data: analyticsData, isLoading } = useQuery<TrialAnalytics>({
     queryKey: ['/api/trial/analytics'],
@@ -37,16 +37,7 @@ export function TrialAnalytics() {
 
   return (
     <div className="container mx-auto p-8">
-      <div className="flex justify-between items-center mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation("/trial")}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Trial Status
-        </Button>
-      </div>
+      <TrialNav />
 
       <div className="grid gap-8">
         <Card>

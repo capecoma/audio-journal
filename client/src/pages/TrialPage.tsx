@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import TrialNav from "@/components/trial/TrialNav";
 
 interface TrialStatus {
   currentTier: 'free' | 'trial' | 'basic';
@@ -57,6 +58,7 @@ export function TrialPage() {
 
   return (
     <div className="container mx-auto p-8">
+      <TrialNav />
       <Card>
         <CardHeader>
           <CardTitle>Trial Status</CardTitle>
