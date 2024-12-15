@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import MicrophoneIcon from "./MicrophoneIcon";
 import { useToast } from "@/hooks/use-toast";
 import AudioVisualizer from './AudioVisualizer';
 
@@ -74,18 +74,16 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
         </div>
       ) : (
         <>
-          <Button
-            size="lg"
-            variant={isRecording ? "destructive" : "default"}
+          <button
             onClick={isRecording ? stopRecording : startRecording}
-            className="w-32 h-32 rounded-full"
+            className={`w-32 h-32 flex items-center justify-center rounded-full transition-colors ${
+              isRecording 
+                ? "bg-destructive/10 hover:bg-destructive/20" 
+                : "hover:bg-primary/5"
+            }`}
           >
-            {isRecording ? (
-              <Square className="h-8 w-8" />
-            ) : (
-              <Mic className="h-8 w-8" />
-            )}
-          </Button>
+            <MicrophoneIcon isRecording={isRecording} />
+          </button>
           {isRecording && (
             <div className="mt-2">
               <AudioVisualizer mediaStream={mediaStreamRef.current} />
