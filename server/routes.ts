@@ -127,6 +127,9 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Apply trial status middleware to all API routes
+  app.use('/api', checkTrialStatus);
+
   // Trial Management Routes
   app.post("/api/trial/activate", async (req, res) => {
     try {
