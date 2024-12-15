@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { db } from "@db";
-import { entries, summaries } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { entries, summaries, tags, entryTags } from "@db/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { transcribeAudio, generateSummary } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -104,6 +104,88 @@ export function registerRoutes(app: Express): Server {
       res.json(userSummaries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch summaries" });
+    }
+  });
+
+  // Tag management endpoints
+  app.get("/api/tags", async (req, res) => {
+    try {
+      const userTags = await db.query.tags.findMany({
+        orderBy: desc(tags.createdAt),
+      });
+      res.json(userTags);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tags" });
+    }
+  });
+
+  app.post("/api/tags", async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Tag name is required" });
+      }
+
+      const [tag] = await db.insert(tags)
+        .values({ name, userId: 1 })
+        .returning();
+      
+      res.json(tag);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create tag" });
+    }
+  });
+
+  // Add tags to entry
+  app.post("/api/entries/:entryId/tags", async (req, res) => {
+    try {
+      const entryId = parseInt(req.params.entryId);
+      const { tagIds } = req.body;
+
+      if (!Array.isArray(tagIds)) {
+        return res.status(400).json({ error: "tagIds must be an array" });
+      }
+
+      // Add new tags
+      await Promise.all(
+        tagIds.map((tagId) =>
+          db.insert(entryTags)
+            .values({ entryId, tagId })
+            .onConflictDoNothing()
+        )
+      );
+
+      const entry = await db.query.entries.findFirst({
+        where: eq(entries.id, entryId),
+        with: {
+          tags: {
+            with: {
+              tag: true,
+            },
+          },
+        },
+      });
+
+      res.json(entry);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update entry tags" });
+    }
+  });
+
+  // Get entry tags
+  app.get("/api/entries/:entryId/tags", async (req, res) => {
+    try {
+      const entryId = parseInt(req.params.entryId);
+      const entryTags = await db.query.entryTags.findMany({
+        where: eq(entryTags.entryId, entryId),
+        with: {
+          tag: true,
+        },
+      });
+
+      res.json(entryTags.map(et => et.tag));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch entry tags" });
     }
   });
 

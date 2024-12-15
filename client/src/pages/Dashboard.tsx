@@ -9,6 +9,7 @@ import type { Entry, Summary } from "@db/schema";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<number[]>([]);
   
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
@@ -33,6 +34,18 @@ export default function Dashboard() {
     audio.play();
   };
 
+  const handleTagSelect = async (entryId: number, tagId: number) => {
+    const response = await fetch(`/api/entries/${entryId}/tags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tagIds: [tagId] }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update entry tags");
+    }
+  };
+
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
@@ -51,6 +64,8 @@ export default function Dashboard() {
           onPlay={handlePlayEntry}
           onSearch={setSearchQuery}
           searchQuery={searchQuery}
+          selectedTags={selectedTags}
+          onTagSelect={handleTagSelect}
         />
         <DailySummary summaries={summaries} />
       </div>

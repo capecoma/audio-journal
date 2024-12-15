@@ -4,15 +4,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, FileText, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { Entry } from "@db/schema";
+import TagList from "./TagList";
 
 interface EntryListProps {
   entries: Entry[];
   onPlay: (entry: Entry) => void;
   onSearch: (query: string) => void;
   searchQuery: string;
+  selectedTags: number[];
+  onTagSelect: (entryId: number, tagId: number) => void;
 }
 
-export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
+export default function EntryList({ entries, onPlay, onSearch, searchQuery, selectedTags, onTagSelect }: EntryListProps) {
   return (
     <Card className="h-[600px]">
       <CardHeader>
@@ -56,9 +59,17 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                   </div>
                 </div>
                 {entry.transcript && (
-                  <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                    {entry.transcript}
-                  </p>
+                  <>
+                    <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                      {entry.transcript}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <TagList 
+                        selectedTags={selectedTags}
+                        onTagSelect={(tagId) => onTagSelect(entry.id, tagId)}
+                      />
+                    </div>
+                  </>
                 )}
               </Card>
             ))}
