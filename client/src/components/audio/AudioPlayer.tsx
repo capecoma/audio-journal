@@ -25,65 +25,72 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
     setProgress(0);
   }, []);
 
-  const togglePlayback = () => {
-    if (isPlaying) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
+  const togglePlayback = useCallback(() => {
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
       return;
     }
 
-    // If we have an existing paused audio, resume it
-    if (audioRef.current) {
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch(console.error);
-      return;
-    }
-
+    let audio = audioRef.current;
+    
     // Create a new audio element if none exists
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
+    if (!audio) {
+      audio = new Audio(audioUrl);
+      audioRef.current = audio;
 
-    audio.addEventListener('timeupdate', () => {
-      const currentProgress = (audio.currentTime / audio.duration) * 100;
-      setProgress(currentProgress);
-    });
+      const handleTimeUpdate = () => {
+        const currentProgress = (audio!.currentTime / audio!.duration) * 100;
+        setProgress(currentProgress);
+      };
 
-    audio.addEventListener('ended', cleanupAudio);
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      audio.addEventListener('ended', cleanupAudio);
+      
+      // Store the listeners to remove them later
+      audio.dataset.timeUpdateHandler = String(handleTimeUpdate);
+    }
 
-    audio.play().then(() => {
-      setIsPlaying(true);
-      onPlay();
-    }).catch(console.error);
-  };
+    audio.play()
+      .then(() => {
+        setIsPlaying(true);
+        onPlay();
+      })
+      .catch((error) => {
+        console.error('Error playing audio:', error);
+        cleanupAudio();
+      });
+  }, [audioUrl, isPlaying, onPlay, cleanupAudio]);
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={togglePlayback}
-        className="p-2 hover:bg-secondary rounded-full relative"
-      >
-        {isPlaying ? (
-          <Pause className="h-4 w-4" />
-        ) : (
-          <Play className="h-4 w-4" />
-        )}
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8">
-          <div className="h-[2px] bg-muted overflow-hidden">
+      <div className="relative">
+        <button
+          onClick={togglePlayback}
+          className="p-2 hover:bg-secondary rounded-full"
+          aria-label={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+        </button>
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12">
+          <div className="h-1 bg-muted rounded-full overflow-hidden">
             <div 
-              className="h-full bg-red-500 transition-all duration-100"
-              style={{ width: isPlaying ? `${progress}%` : '0%' }}
+              className="h-full bg-red-500 transition-transform duration-100 ease-linear"
+              style={{ transform: `translateX(-${100 - progress}%)` }}
             />
           </div>
         </div>
-      </button>
+      </div>
       
       {transcript && (
         <button
           onClick={onTranscriptClick}
           className="p-2 hover:bg-secondary rounded-full"
+          aria-label="View transcript"
         >
           <FileText className="h-4 w-4 text-muted-foreground" />
         </button>
