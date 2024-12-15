@@ -12,7 +12,7 @@ export default function MicrophoneIcon({ isRecording }: MicrophoneIconProps) {
       viewBox="0 0 100 100"
       initial="idle"
       animate={isRecording ? "recording" : "idle"}
-      className="w-96 h-96"
+      className="w-[400px] h-[400px]"
     >
       {/* Base stand */}
       <motion.path
@@ -44,32 +44,8 @@ export default function MicrophoneIcon({ isRecording }: MicrophoneIconProps) {
         }}
       />
 
-      {/* Mic grill lines */}
-      {[0, 1, 2, 3, 4].map((i) => (
-        <motion.rect
-          key={i}
-          x="40"
-          y={25 + i * 8}
-          width="20"
-          height="3"
-          rx="1.5"
-          fill="hsl(var(--muted))"
-          variants={{
-            idle: { opacity: 0.3 },
-            recording: {
-              opacity: [0.3, 0.6, 0.3],
-              transition: {
-                repeat: Infinity,
-                duration: 1.5,
-                delay: i * 0.1,
-              },
-            },
-          }}
-        />
-      ))}
-
       {/* Recording ripple effects */}
-      {isRecording && [20, 30, 40].map((radius, i) => (
+      {isRecording && [30, 45, 60].map((radius, i) => (
         <motion.circle
           key={radius}
           cx="50"
