@@ -5,16 +5,35 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 
+interface FeatureUsage {
+  feature: string;
+  count: number;
+}
+
+interface TrialAnalytics {
+  featureUsage: FeatureUsage[];
+  activeTrials: number;
+  completedTrials: number;
+  conversionRate: number;
+}
+
 export function TrialAnalytics() {
   const [, setLocation] = useLocation();
   
-  const { data: analyticsData, isLoading } = useQuery({
+  const { data: analyticsData, isLoading } = useQuery<TrialAnalytics>({
     queryKey: ['/api/trial/analytics'],
   });
 
   if (isLoading) {
     return <div className="p-8">Loading analytics...</div>;
   }
+
+  const chartData = analyticsData?.featureUsage ?? [];
+  const stats = {
+    activeTrials: analyticsData?.activeTrials ?? 0,
+    completedTrials: analyticsData?.completedTrials ?? 0,
+    conversionRate: analyticsData?.conversionRate ?? 0,
+  };
 
   return (
     <div className="container mx-auto p-8">
@@ -35,7 +54,7 @@ export function TrialAnalytics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData?.featureUsage || []}>
+                <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="feature" />
                   <YAxis />
@@ -53,7 +72,7 @@ export function TrialAnalytics() {
               <CardTitle>Active Trials</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{analyticsData?.activeTrials || 0}</p>
+              <p className="text-3xl font-bold">{stats.activeTrials}</p>
             </CardContent>
           </Card>
 
@@ -62,7 +81,7 @@ export function TrialAnalytics() {
               <CardTitle>Trial Completions</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{analyticsData?.completedTrials || 0}</p>
+              <p className="text-3xl font-bold">{stats.completedTrials}</p>
             </CardContent>
           </Card>
 
@@ -72,7 +91,7 @@ export function TrialAnalytics() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {analyticsData?.conversionRate ? `${(analyticsData.conversionRate * 100).toFixed(1)}%` : '0%'}
+                {`${(stats.conversionRate * 100).toFixed(1)}%`}
               </p>
             </CardContent>
           </Card>

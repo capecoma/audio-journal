@@ -104,7 +104,7 @@ export function TrialPage() {
         <CardFooter>
           <Button 
             variant="outline" 
-            onClick={() => window.location.href = '/trial/analytics'}
+            onClick={() => setLocation("/trial/analytics")}
             className="ml-auto"
           >
             View Trial Analytics
