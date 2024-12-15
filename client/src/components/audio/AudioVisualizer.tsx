@@ -40,11 +40,7 @@ export default function AudioVisualizer({ mediaStream }: AudioVisualizerProps) {
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * height;
-        const gradient = canvasCtx.createLinearGradient(0, height, 0, height - barHeight);
-        gradient.addColorStop(0, 'hsl(var(--primary))');
-        gradient.addColorStop(1, 'hsl(var(--primary) / 0.3)');
-        
-        canvasCtx.fillStyle = gradient;
+        canvasCtx.fillStyle = 'rgb(220, 30, 30)'; // Simple red color
         canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
 
         x += barWidth + 1;
