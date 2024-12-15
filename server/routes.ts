@@ -38,7 +38,14 @@ async function checkAndUpdateTrialStatus(userId: number) {
 async function checkTrialStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = 1; // TODO: Get from auth
-    const user = await checkAndUpdateTrialStatus(userId);
+    
+    // Use cached trial status if available within the same request
+    if (!req.app.locals.trialStatus || req.app.locals.trialStatusTime < Date.now() - 1000) {
+      req.app.locals.trialStatus = await checkAndUpdateTrialStatus(userId);
+      req.app.locals.trialStatusTime = Date.now();
+    }
+    
+    const user = req.app.locals.trialStatus;
 
     // If user is on basic tier or active trial, allow access to all features
     if (user.currentTier === 'basic' || user.isTrialActive) {

@@ -18,6 +18,8 @@ export default function Dashboard() {
   // Get trial status
   const { data: trialStatus } = useQuery<TrialStatus>({
     queryKey: ['/api/trial/status'],
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 0, // Don't cache the response
   });
 
   const { data: entries = [] } = useQuery<Entry[]>({
