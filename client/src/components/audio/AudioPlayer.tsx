@@ -1,102 +1,72 @@
-import { useState, useRef, useEffect } from 'react';
-import { Play, Pause } from 'lucide-react';
-import { Slider } from "@/components/ui/slider";
-import { formatDuration } from '@/lib/utils';
+import { useState, useRef, useCallback } from 'react';
+import { FileText } from 'lucide-react';
 
 interface AudioPlayerProps {
   audioUrl: string;
   duration?: number;
   onPlay: () => void;
+  onTranscriptClick: () => void;
+  transcript?: string;
 }
 
-export default function AudioPlayer({ audioUrl, duration = 0, onPlay }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscriptClick, transcript }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const intervalRef = useRef<number>();
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    audioRef.current = new Audio(audioUrl);
-    audioRef.current.addEventListener('ended', () => {
-      setIsPlaying(false);
-      setProgress(0);
-      setCurrentTime(0);
+  const cleanupAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.remove();
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
+    setProgress(0);
+  }, []);
+
+  const handlePlay = () => {
+    // If there's already an audio element playing, clean it up
+    cleanupAudio();
+
+    // Create a new audio element
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+
+    audio.addEventListener('timeupdate', () => {
+      const currentProgress = (audio.currentTime / audio.duration) * 100;
+      setProgress(currentProgress);
     });
 
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.remove();
-      }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [audioUrl]);
+    audio.addEventListener('ended', cleanupAudio);
 
-  const startTimer = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    intervalRef.current = window.setInterval(() => {
-      if (audioRef.current?.currentTime) {
-        setCurrentTime(audioRef.current.currentTime);
-        setProgress((audioRef.current.currentTime / (duration || audioRef.current.duration)) * 100);
-      }
-    }, 100);
-  };
-
-  const togglePlayPause = () => {
-    if (!audioRef.current) return;
-
-    if (!isPlaying) {
-      audioRef.current.play();
-      startTimer();
+    audio.play().then(() => {
+      setIsPlaying(true);
       onPlay();
-    } else {
-      audioRef.current.pause();
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-    setIsPlaying(!isPlaying);
-  };
-
-  const onSliderChange = (value: number[]) => {
-    if (!audioRef.current) return;
-    
-    const time = (value[0] / 100) * (duration || audioRef.current.duration);
-    audioRef.current.currentTime = time;
-    setProgress(value[0]);
-    setCurrentTime(time);
+    }).catch(console.error);
   };
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={togglePlayPause}
-        className="p-2 hover:bg-secondary rounded-full transition-colors"
-      >
-        {isPlaying ? (
-          <Pause className="h-4 w-4" />
-        ) : (
-          <Play className="h-4 w-4" />
-        )}
-      </button>
-      <div className="flex-1 flex items-center gap-2">
-        <Slider
-          value={[progress]}
-          onValueChange={onSliderChange}
-          max={100}
-          step={0.1}
-          className="w-24"
-        />
-        <span className="text-xs text-muted-foreground min-w-[3rem]">
-          {formatDuration(currentTime)}
-        </span>
-      </div>
+      {transcript && (
+        <button
+          onClick={onTranscriptClick}
+          className="p-2 hover:bg-secondary rounded-full relative group"
+        >
+          <FileText className="h-4 w-4 text-muted-foreground" />
+          {isPlaying && (
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
+              <div ref={progressBarRef} className="h-[2px] w-8 bg-muted overflow-hidden">
+                <div 
+                  className="h-full bg-red-500 transition-all duration-100"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </button>
+      )}
     </div>
   );
 }

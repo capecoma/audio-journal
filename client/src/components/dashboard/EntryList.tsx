@@ -70,18 +70,12 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                         audioUrl={entry.audioUrl} 
                         duration={entry.duration}
                         onPlay={() => onPlay(entry)}
+                        onTranscriptClick={() => setSelectedTranscript({
+                          text: entry.transcript!,
+                          date: format(new Date(entry.createdAt!), "PPpp")
+                        })}
+                        transcript={entry.transcript}
                       />
-                      {entry.transcript && (
-                        <button
-                          onClick={() => setSelectedTranscript({
-                            text: entry.transcript!,
-                            date: format(new Date(entry.createdAt!), "PPpp")
-                          })}
-                          className="p-2 hover:bg-secondary rounded-full"
-                        >
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
                     </div>
                   </div>
                   {entry.transcript && (
