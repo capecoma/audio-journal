@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, FileText, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { Entry } from "@db/schema";
+import type { Entry, SelectTag } from "@db/schema";
 import TagList from "./TagList";
 import { useQuery } from "@tanstack/react-query";
 
@@ -66,6 +66,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTa
                     <div className="mt-2">
                       <TagList 
                         entryId={entry.id}
+                        entryTags={entry.entryTags?.map(et => et.tag) ?? []}
                         onTagSelect={(tagId) => onTagSelect(entry.id, tagId)}
                       />
                     </div>

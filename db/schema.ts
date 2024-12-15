@@ -74,7 +74,11 @@ export type NewTag = typeof tags.$inferInsert;
 
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
-export type Entry = typeof entries.$inferSelect;
+export type Entry = typeof entries.$inferSelect & {
+  entryTags?: {
+    tag: SelectTag;
+  }[];
+};
 export type NewEntry = typeof entries.$inferInsert;
 
 export const insertSummarySchema = createInsertSchema(summaries);

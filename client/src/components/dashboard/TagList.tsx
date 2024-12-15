@@ -9,20 +9,17 @@ import type { SelectTag } from "@db/schema";
 
 interface TagListProps {
   entryId: number;
+  entryTags: SelectTag[];
   onTagSelect: (tagId: number) => void;
 }
 
-export default function TagList({ entryId, onTagSelect }: TagListProps) {
+export default function TagList({ entryId, entryTags, onTagSelect }: TagListProps) {
   const [newTagName, setNewTagName] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: tags = [], isLoading: isLoadingTags } = useQuery<SelectTag[]>({
     queryKey: ["/api/tags"],
-  });
-
-  const { data: entryTags = [], isLoading: isLoadingEntryTags } = useQuery<SelectTag[]>({
-    queryKey: ["/api/entries", entryId, "tags"],
   });
 
   const createTagMutation = useMutation({
@@ -62,7 +59,7 @@ export default function TagList({ entryId, onTagSelect }: TagListProps) {
     await createTagMutation.mutateAsync(newTagName.trim());
   };
 
-  if (isLoadingTags || isLoadingEntryTags) {
+  if (isLoadingTags) {
     return <div>Loading tags...</div>;
   }
 

@@ -13,20 +13,28 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/entries", async (req, res) => {
     try {
       const { search } = req.query;
-      let query = db.query.entries.findMany({
-        orderBy: desc(entries.createdAt),
-      });
+      const queryConfig = {
+        orderBy: [desc(entries.createdAt)],
+        with: {
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
+      };
 
-      if (search && typeof search === 'string') {
-        query = db.query.entries.findMany({
-          where: (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`),
-          orderBy: desc(entries.createdAt),
-        });
-      }
+      const finalQuery = search && typeof search === 'string'
+        ? db.query.entries.findMany({
+            ...queryConfig,
+            where: (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`),
+          })
+        : db.query.entries.findMany(queryConfig);
 
-      const userEntries = await query;
+      const userEntries = await finalQuery;
       res.json(userEntries);
     } catch (error) {
+      console.error('Error fetching entries:', error);
       res.status(500).json({ error: "Failed to fetch entries" });
     }
   });
