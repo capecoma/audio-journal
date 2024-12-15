@@ -71,22 +71,38 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
 
   return (
     <div className="flex items-center gap-4">
-      <div className="relative flex items-center">
-        <button
-          onClick={togglePlayback}
-          className="p-2 hover:bg-secondary rounded-full"
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
+      <div className="flex items-center">
+        {!isPlaying ? (
+          <button
+            onClick={() => {
+              audioRef.current.play()
+                .then(() => {
+                  setIsPlaying(true);
+                  onPlay();
+                })
+                .catch(console.error);
+            }}
+            className="p-2 hover:bg-secondary rounded-full"
+            aria-label="Play"
+          >
             <Play className="h-4 w-4" />
-          )}
-        </button>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              audioRef.current.pause();
+              setIsPlaying(false);
+            }}
+            className="p-2 hover:bg-secondary rounded-full"
+            aria-label="Pause"
+          >
+            <Pause className="h-4 w-4" />
+          </button>
+        )}
 
-        <div className="mx-2 w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="mx-2 w-32 h-2 bg-muted rounded-full overflow-hidden">
           <div 
-            className="h-full bg-red-500 transition-all duration-100"
+            className="h-full bg-red-500"
             style={{ width: `${progress}%` }}
           />
         </div>
