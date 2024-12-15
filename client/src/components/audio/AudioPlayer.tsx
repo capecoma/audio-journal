@@ -21,11 +21,12 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
   }, [volume]);
 
   const formatDuration = (timeInSeconds: number) => {
-    if (timeInSeconds < 60) {
-      return `${Math.round(timeInSeconds)}s`;
+    const roundedSeconds = Math.round(timeInSeconds);
+    if (roundedSeconds < 60) {
+      return `${roundedSeconds}s`;
     }
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.round(timeInSeconds % 60);
+    const minutes = Math.floor(roundedSeconds / 60);
+    const seconds = roundedSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
@@ -35,19 +36,21 @@ export default function AudioPlayer({ audioUrl, progress, duration = 0, onTransc
 
   return (
     <div className="flex items-center gap-4">
-      <div className="flex items-center flex-1">
-        <div className="relative w-32 h-2 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+      <div className="flex items-center flex-1 space-x-4">
+        <div className="flex-1 max-w-md">
+          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+            <div 
+              className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
-        <span className="ml-2 text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground min-w-[3ch]">
           {formatDuration(duration)}
         </span>
 
-        <div className="flex items-center ml-4 gap-2">
+        <div className="flex items-center gap-2">
           {volume === 0 ? (
             <VolumeX className="h-4 w-4 text-muted-foreground" />
           ) : (
