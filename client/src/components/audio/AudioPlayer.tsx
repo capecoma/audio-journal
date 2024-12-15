@@ -27,11 +27,22 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
 
   const togglePlayback = () => {
     if (isPlaying) {
-      cleanupAudio();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
       return;
     }
 
-    // Create a new audio element
+    // If we have an existing paused audio, resume it
+    if (audioRef.current) {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(console.error);
+      return;
+    }
+
+    // Create a new audio element if none exists
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
