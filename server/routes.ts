@@ -258,4 +258,45 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
+  // Export entries endpoint
+  app.get("/api/entries/export", async (_req, res) => {
+    try {
+      const userEntries = await db.query.entries.findMany({
+        orderBy: [desc(entries.createdAt)],
+        with: {
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      const exportData = userEntries.map(entry => ({
+        date: new Date(entry.createdAt!).toLocaleString(),
+        transcript: entry.transcript,
+        tags: entry.entryTags?.map(et => et.tag.name),
+        audioUrl: entry.audioUrl,
+        duration: entry.duration
+      }));
+
+      const exportContent = exportData.map(entry => `
+Date: ${entry.date}
+Duration: ${Math.round(entry.duration! / 60)} minutes
+Tags: ${entry.tags?.join(', ') || 'No tags'}
+
+${entry.transcript}
+
+-------------------
+`).join('\n');
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename=journal-entries.txt');
+      res.send(exportContent);
+    } catch (error) {
+      console.error('Error exporting entries:', error);
+      res.status(500).json({ error: "Failed to export entries" });
+    }
+  });
+
 }

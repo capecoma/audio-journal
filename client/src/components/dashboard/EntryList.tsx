@@ -1,9 +1,10 @@
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Play, FileText, Search } from "lucide-react";
+import { Play, FileText, Search, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { Entry, SelectTag } from "@db/schema";
+import { Button } from "@/components/ui/button";
+import type { Entry } from "@db/schema";
 import TagList from "./TagList";
 import { useQuery } from "@tanstack/react-query";
 
@@ -18,7 +19,18 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
   return (
     <Card className="h-[600px]">
       <CardHeader>
-        <CardTitle>Journal Entries</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle>Journal Entries</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('/api/entries/export', '_blank')}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+        </div>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
