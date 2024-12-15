@@ -5,15 +5,22 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
+    // Create a File object from the buffer
+    const file = new File([audioBuffer], 'audio.webm', { type: 'audio/webm' });
+
     const transcription = await openai.audio.transcriptions.create({
-      file: audioBuffer,
+      file: file,
       model: "whisper-1",
+      response_format: "text"
     });
 
     return transcription.text;
   } catch (error) {
     console.error("Transcription error:", error);
-    throw new Error("Failed to transcribe audio");
+    if (error.response?.status === 400) {
+      throw new Error("Invalid audio format. Please ensure you're recording in a supported format.");
+    }
+    throw new Error("Failed to transcribe audio: " + error.message);
   }
 }
 

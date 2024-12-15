@@ -28,14 +28,24 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ error: "No audio data received" });
+      }
+
       const audioBuffer = req.file.buffer;
       const duration = 0; // We'll get this from the audio file later
 
-      // For now, we'll use a placeholder URL since we haven't set up S3
+      // For now, we'll store audio as base64 data URL
       const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
 
       // Transcribe audio
-      const transcript = await transcribeAudio(audioBuffer);
+      let transcript;
+      try {
+        transcript = await transcribeAudio(audioBuffer);
+      } catch (error) {
+        console.error("Transcription error:", error);
+        return res.status(400).json({ error: error.message });
+      }
 
       // Create entry
       const [entry] = await db.insert(entries).values({
