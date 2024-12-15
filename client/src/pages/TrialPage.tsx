@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
 export function TrialPage() {
@@ -101,6 +101,15 @@ export function TrialPage() {
             )}
           </div>
         </CardContent>
+        <CardFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/trial/analytics'}
+            className="ml-auto"
+          >
+            View Trial Analytics
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

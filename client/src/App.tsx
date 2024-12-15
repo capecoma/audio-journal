@@ -4,6 +4,7 @@ import { AlertCircle } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Journal from "./pages/Journal";
 import { TrialPage } from "./pages/TrialPage";
+import { TrialAnalytics } from "./pages/TrialAnalytics";
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
       <Route path="/trial" component={TrialPage} />
+      <Route path="/trial/analytics" component={TrialAnalytics} />
       <Route component={NotFound} />
     </Switch>
   );
