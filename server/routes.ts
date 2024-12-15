@@ -18,23 +18,48 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
       return res.status(404).json({ error: "User not found" });
     }
 
-    // If trial is active, allow access
-    if (user.trialEndDate && user.trialEndDate > new Date()) {
+    // Check if trial has expired and update tier if needed
+    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate <= new Date()) {
+      await db.update(users)
+        .set({ currentTier: 'free' })
+        .where(eq(users.id, userId));
+      user.currentTier = 'free';
+    }
+
+    // If trial is active, allow access to all features
+    if (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > new Date()) {
       return next();
     }
 
-    // If user is on basic tier, allow access
+    // If user is on basic tier, allow access to basic features
     if (user.currentTier === 'basic') {
       return next();
     }
 
     // For free tier users, check feature restrictions
     if (user.currentTier === 'free') {
-      // Add free tier restrictions here
-      return next();
+      const freeFeatures = [
+        '/api/entries', // Limited entries
+        '/api/entries/upload', // Basic upload
+      ];
+      
+      const isBasicFeature = !freeFeatures.some(path => req.path.startsWith(path));
+      
+      if (isBasicFeature) {
+        return res.status(403).json({ 
+          error: "This feature requires a Basic subscription or active trial",
+          currentTier: user.currentTier
+        });
+      }
+
+      // Add request-specific restrictions for free tier
+      if (req.path === '/api/entries') {
+        // Limit to last 5 entries for free tier
+        req.query.limit = '5';
+      }
     }
 
-    return res.status(403).json({ error: "Feature not available in your current plan" });
+    return next();
   } catch (error) {
     console.error('Error checking trial status:', error);
     return res.status(500).json({ error: "Internal server error" });
