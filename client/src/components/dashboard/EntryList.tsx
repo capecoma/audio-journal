@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Entry } from "@db/schema";
+import type { TrialStatus } from "@/types/trial";
 import TagList from "./TagList";
 import { useState } from "react";
 import AudioPlayer from "@/components/audio/AudioPlayer";
@@ -26,7 +27,7 @@ interface EntryListProps {
 
 // Get trial status using React Query
 function useTrialStatus() {
-  const { data: trialStatus } = useQuery({
+  const { data: trialStatus } = useQuery<TrialStatus>({
     queryKey: ['/api/trial/status'],
   });
   return trialStatus;

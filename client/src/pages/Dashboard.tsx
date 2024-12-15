@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
 import type { Entry, Summary } from "@db/schema";
+import type { TrialStatus } from "@/types/trial";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,7 +16,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
 
   // Get trial status
-  const { data: trialStatus } = useQuery({
+  const { data: trialStatus } = useQuery<TrialStatus>({
     queryKey: ['/api/trial/status'],
   });
 
