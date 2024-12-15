@@ -110,11 +110,25 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
     }
 
     // Apply free tier restrictions
-    if (req.path === '/api/entries') {
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
-      req.query.limit = '5';
-      req.query.after = thirtyDaysAgo.toISOString();
+    if (user.currentTier === 'free' && req.path === '/api/entries') {
+      // Get current entry count
+      const entryCount = await db.query.entries.findMany({
+        where: eq(entries.userId, userId)
+      });
+
+      // Block new uploads if limit reached
+      if (req.method === 'POST' && entryCount.length >= 5) {
+        return res.status(403).json({
+          error: "Free tier limit reached",
+          detail: "You've reached the limit of 5 entries for free tier users",
+          canStartTrial: !user.isTrialUsed
+        });
+      }
+
+      // Limit entries returned for GET requests
+      if (req.method === 'GET') {
+        req.query.limit = '5';
+      }
     }
 
     return next();
