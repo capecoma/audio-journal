@@ -116,7 +116,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <Card key={entry.id} className="p-6 hover:bg-muted/50 transition-colors">
+                  <div key={entry.id} className="p-6 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
                     <div className="space-y-4">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                         <div className="space-y-1.5 min-w-0">
@@ -124,7 +124,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                             <span className="font-medium whitespace-nowrap">
                               {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
                             </span>
-                            <span className="text-sm px-2.5 py-1 rounded-full bg-primary/10 text-primary whitespace-nowrap">
+                            <span className="text-sm font-medium text-primary whitespace-nowrap">
                               {Math.round(entry.duration! / 60)}min
                             </span>
                           </div>
@@ -132,7 +132,6 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                         <AudioPlayer 
                           audioUrl={entry.audioUrl} 
                           duration={entry.duration ?? 0}
-                          onPlay={() => onPlay(entry)}
                           onTranscriptClick={() => setSelectedTranscript({
                             text: entry.transcript!,
                             date: format(new Date(entry.createdAt!), "PPpp")
@@ -152,7 +151,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </div>
                 ))
               )}
             </div>
