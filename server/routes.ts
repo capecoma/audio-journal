@@ -31,32 +31,38 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
       return next();
     }
 
-    // If user is on basic tier, allow access to basic features
-    if (user.currentTier === 'basic') {
+    // If user is on basic tier or trial, allow access to all features
+    if (user.currentTier === 'basic' || (user.currentTier === 'trial' && user.trialEndDate && user.trialEndDate > new Date())) {
       return next();
     }
 
-    // For free tier users, check feature restrictions
-    if (user.currentTier === 'free') {
-      const freeFeatures = [
-        '/api/entries', // Limited entries
-        '/api/entries/upload', // Basic upload
-      ];
+    // For free tier users (including expired trials), check feature restrictions
+    const freeFeatures = [
+      '/api/entries', // Limited entries
+      '/api/entries/upload', // Basic upload
+    ];
+    
+    const isRestrictedFeature = !freeFeatures.some(path => req.path.startsWith(path));
+    
+    if (isRestrictedFeature) {
+      const message = user.trialEndDate && user.trialEndDate <= new Date()
+        ? "Your trial has expired. Please upgrade to continue using premium features."
+        : "This feature requires a Basic subscription or active trial";
       
-      const isBasicFeature = !freeFeatures.some(path => req.path.startsWith(path));
-      
-      if (isBasicFeature) {
-        return res.status(403).json({ 
-          error: "This feature requires a Basic subscription or active trial",
-          currentTier: user.currentTier
-        });
-      }
+      return res.status(403).json({ 
+        error: message,
+        currentTier: user.currentTier,
+        trialExpired: user.trialEndDate ? user.trialEndDate <= new Date() : false
+      });
+    }
 
-      // Add request-specific restrictions for free tier
-      if (req.path === '/api/entries') {
-        // Limit to last 5 entries for free tier
-        req.query.limit = '5';
-      }
+    // Apply free tier restrictions
+    if (req.path === '/api/entries') {
+      // Limit to last 5 entries for free tier
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+      req.query.limit = '5';
+      req.query.after = thirtyDaysAgo.toISOString();
     }
 
     return next();
