@@ -42,29 +42,6 @@ export default function Dashboard() {
     });
   };
 
-  const handleTagSelect = async (entryId: number, tagId: number) => {
-    try {
-      const response = await fetch(`/api/entries/${entryId}/tags`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tagId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update entry tags");
-      }
-
-      // Invalidate only the specific entry's tags
-      queryClient.invalidateQueries({ queryKey: ["/api/entries", entryId, "tags"] });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
@@ -83,7 +60,6 @@ export default function Dashboard() {
           onPlay={handlePlayEntry}
           onSearch={setSearchQuery}
           searchQuery={searchQuery}
-          onTagSelect={handleTagSelect}
         />
         <DailySummary summaries={summaries} />
       </div>

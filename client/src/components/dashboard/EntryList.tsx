@@ -12,10 +12,9 @@ interface EntryListProps {
   onPlay: (entry: Entry) => void;
   onSearch: (query: string) => void;
   searchQuery: string;
-  
 }
 
-export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTagSelect }: EntryListProps) {
+export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
   return (
     <Card className="h-[600px]">
       <CardHeader>
