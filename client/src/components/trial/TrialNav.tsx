@@ -1,34 +1,43 @@
 import { Link, useLocation } from "wouter";
-import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink } from "@/components/ui/navigation-menu";
+import { Card } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function TrialNav() {
   const [location] = useLocation();
 
   const items = [
-    { href: "/", label: "← Back to Dashboard" },
     { href: "/trial", label: "Trial Status" },
     { href: "/trial/analytics", label: "Analytics" },
   ];
 
   return (
-    <NavigationMenu className="mb-8">
-      <NavigationMenuList>
-        {items.map((item) => (
-          <NavigationMenuItem key={item.href}>
-            <Link href={item.href}>
-              <NavigationMenuLink
+    <div className="mb-8">
+      <Link href="/">
+        <a className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </a>
+      </Link>
+      
+      <Card>
+        <nav className="flex border-b">
+          {items.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <a
                 className={cn(
-                  "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                  location === item.href && "bg-accent text-accent-foreground"
+                  "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                  location === item.href
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
                 {item.label}
-              </NavigationMenuLink>
+              </a>
             </Link>
-          </NavigationMenuItem>
-        ))}
-      </NavigationMenuList>
-    </NavigationMenu>
+          ))}
+        </nav>
+      </Card>
+    </div>
   );
 }
