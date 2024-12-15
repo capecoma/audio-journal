@@ -3,12 +3,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Journal from "./pages/Journal";
+import { TrialPage } from "./pages/TrialPage";
 
 function App() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
+      <Route path="/trial" component={TrialPage} />
       <Route component={NotFound} />
     </Switch>
   );
