@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AudioVisualizer from './AudioVisualizer';
 
 interface RecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -12,6 +13,7 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
 
   const startRecording = async () => {
@@ -25,6 +27,7 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
         }
       });
 
+      mediaStreamRef.current = stream;
       mediaRecorder.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 32000
@@ -57,6 +60,7 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
     if (mediaRecorder.current && isRecording) {
       mediaRecorder.current.stop();
       mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
       setIsRecording(false);
     }
   };
@@ -69,18 +73,25 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
           <span>Processing recording...</span>
         </div>
       ) : (
-        <Button
-          size="lg"
-          variant={isRecording ? "destructive" : "default"}
-          onClick={isRecording ? stopRecording : startRecording}
-          className="w-32 h-32 rounded-full"
-        >
-          {isRecording ? (
-            <Square className="h-8 w-8" />
-          ) : (
-            <Mic className="h-8 w-8" />
+        <>
+          <Button
+            size="lg"
+            variant={isRecording ? "destructive" : "default"}
+            onClick={isRecording ? stopRecording : startRecording}
+            className="w-32 h-32 rounded-full"
+          >
+            {isRecording ? (
+              <Square className="h-8 w-8" />
+            ) : (
+              <Mic className="h-8 w-8" />
+            )}
+          </Button>
+          {isRecording && (
+            <div className="mt-2">
+              <AudioVisualizer mediaStream={mediaStreamRef.current} />
+            </div>
           )}
-        </Button>
+        </>
       )}
       <p className="text-sm text-muted-foreground">
         {isRecording ? "Click to stop recording" : "Click to start recording"}
