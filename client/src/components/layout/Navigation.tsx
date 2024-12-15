@@ -14,7 +14,7 @@ export default function Navigation() {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 z-30 h-full w-[240px] border-r border-primary/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <aside className="fixed left-0 top-0 z-40 h-full w-[240px] border-r border-primary/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <ScrollArea className="h-full w-full">
         <div className="space-y-8 py-8">
           <div className="px-4">

@@ -53,8 +53,8 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen">
       <Navigation />
-      <main className="flex-1 pl-[200px]">
-        <div className="container py-6 space-y-8">
+      <main className="flex-1 pl-[240px]">
+        <div className="container max-w-[1600px] mx-auto py-8 px-6 space-y-8">
           {/* Status Bar */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-card border">
             <div className="flex items-center gap-4">
