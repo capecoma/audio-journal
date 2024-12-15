@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
@@ -46,12 +47,21 @@ export default function Dashboard() {
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Audio Journal</h1>
-        <Link href="/journal">
-          <Button size="lg">
-            <Plus className="mr-2 h-4 w-4" />
-            New Entry
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setLocation("/trial/analytics")}
+          >
+            Trial Analytics
           </Button>
-        </Link>
+          <Link href="/journal">
+            <Button size="lg">
+              <Plus className="mr-2 h-4 w-4" />
+              New Entry
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
