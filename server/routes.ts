@@ -23,7 +23,7 @@ async function checkAndUpdateTrialStatus(userId: number) {
   // Automatically downgrade expired trials
   if (user.currentTier === 'trial' && isExpired) {
     const updatedUser = await db.update(users)
-      .set({ currentTier: 'free' }) // Downgrade to free tier after trial
+      .set({ currentTier: 'basic' })
       .where(eq(users.id, userId))
       .returning()
       .execute();
@@ -63,17 +63,11 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
       ]
     };
 
-    // Store user status in request for route handlers
-    req.app.locals.userTier = {
-      currentTier: user.currentTier,
-      isTrialActive: user.isTrialActive,
-      trialEndDate: user.trialEndDate,
-      trialStartDate: user.trialStartDate,
-      isTrialUsed: user.isTrialUsed
-    };
-
     // Check if accessing a premium route
     const isPremiumRoute = restrictedRoutes.premium.some(route => req.path.startsWith(route));
+    const isLimitedRoute = restrictedRoutes.limited.some(route => req.path.startsWith(route));
+
+    // Block premium features for free tier
     if (isPremiumRoute && user.currentTier === 'free') {
       return res.status(403).json({
         error: "Premium feature",
@@ -84,12 +78,12 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
       });
     }
 
-    // Check free tier limits for entries
-    if (restrictedRoutes.limited.includes('/api/entries') && user.currentTier === 'free') {
+    // Check free tier limits
+    if (isLimitedRoute && user.currentTier === 'free') {
       const entryCount = await db.select().from(entries)
         .where(eq(entries.userId, userId));
 
-      if (entryCount.length >= 5 && req.path === '/api/entries/upload') {
+      if (entryCount.length >= 5 && req.method === 'POST') {
         return res.status(403).json({
           error: "Free tier limit reached",
           detail: "You've reached the limit of 5 entries. Start your trial or upgrade to create more.",
@@ -97,6 +91,15 @@ async function checkTrialStatus(req: Request, res: Response, next: NextFunction)
         });
       }
     }
+
+    // Store user status in request for route handlers
+    req.app.locals.userTier = {
+      currentTier: user.currentTier,
+      isTrialActive: user.isTrialActive,
+      trialEndDate: user.trialEndDate,
+      trialStartDate: user.trialStartDate,
+      isTrialUsed: user.isTrialUsed
+    };
 
     next();
   } catch (error) {
@@ -320,22 +323,9 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Export entries endpoint
-  app.get("/api/entries/export", async (req, res) => {
+  app.get("/api/entries/export", async (_req, res) => {
     try {
-      const userTier = req.app.locals.userTier;
-      
-      // Block export for free tier users
-      if (userTier.currentTier === 'free') {
-        return res.status(403).json({
-          error: "Premium feature",
-          detail: !userTier.isTrialUsed ? 
-            "Start your free trial to export entries" :
-            "Upgrade to export your journal entries",
-          canStartTrial: !userTier.isTrialUsed
-        });
-      }
-
-      const userEntries = await db.query.entries.findMany({
+      const entries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -346,7 +336,7 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = userEntries.map(entry => ({
+      const exportData = entries.map(entry => ({
         date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
@@ -369,7 +359,7 @@ ${entry.transcript}
       res.send(exportContent);
     } catch (error) {
       console.error('Error exporting entries:', error);
-      res.status(500).json({ error: "Failed to export entries" });
+      res.status(500).json({ message: "Failed to export entries" });
     }
   });
 
