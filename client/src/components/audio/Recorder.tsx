@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Loader2 } from "lucide-react";
 import MicrophoneIcon from "./MicrophoneIcon";
 import { useToast } from "@/hooks/use-toast";
-import AudioVisualizer from './AudioVisualizer';
+
 
 interface RecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -84,11 +84,7 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
           >
             <MicrophoneIcon isRecording={isRecording} />
           </button>
-          {isRecording && (
-            <div className="mt-2">
-              <AudioVisualizer mediaStream={mediaStreamRef.current} />
-            </div>
-          )}
+          
         </>
       )}
       <p className="text-sm text-muted-foreground">
