@@ -14,6 +14,11 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // Get trial status
+  const { data: trialStatus } = useQuery({
+    queryKey: ['/api/trial/status'],
+  });
+
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
     queryFn: async () => {
@@ -47,20 +52,35 @@ export default function Dashboard() {
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Audio Journal</h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setLocation("/trial/analytics")}
-          >
-            Trial Analytics
-          </Button>
-          <Link href="/journal">
-            <Button size="lg">
-              <Plus className="mr-2 h-4 w-4" />
-              New Entry
+        <div className="flex items-center gap-4">
+          {trialStatus?.currentTier === 'free' && (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Free Plan: </span>
+              <span className="font-medium text-yellow-600">
+                {entries.length}/5 entries used
+              </span>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setLocation("/trial/analytics")}
+            >
+              Trial Analytics
             </Button>
-          </Link>
+            <Link href="/journal">
+              <Button 
+                size="lg"
+                disabled={trialStatus?.currentTier === 'free' && entries.length >= 5}
+                title={trialStatus?.currentTier === 'free' && entries.length >= 5 ? 
+                  "Upgrade to create more entries" : undefined}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New Entry
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

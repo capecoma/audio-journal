@@ -14,6 +14,8 @@ import type { Entry } from "@db/schema";
 import TagList from "./TagList";
 import { useState } from "react";
 import AudioPlayer from "@/components/audio/AudioPlayer";
+import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 interface EntryListProps {
   entries: Entry[];
@@ -22,8 +24,30 @@ interface EntryListProps {
   searchQuery: string;
 }
 
+// Get trial status using React Query
+function useTrialStatus() {
+  const { data: trialStatus } = useQuery({
+    queryKey: ['/api/trial/status'],
+  });
+  return trialStatus;
+}
+
 export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
   const [selectedTranscript, setSelectedTranscript] = useState<{ text: string | undefined; date: string } | null>(null);
+  const trialStatus = useTrialStatus();
+  const { toast } = useToast();
+
+  const handleExportClick = () => {
+    if (trialStatus?.currentTier === 'free') {
+      toast({
+        title: "Premium Feature",
+        description: "Upgrade to export your journal entries",
+        variant: "default",
+      });
+      return;
+    }
+    window.open('/api/entries/export', '_blank');
+  };
 
   return (
     <>
@@ -34,7 +58,9 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open('/api/entries/export', '_blank')}
+              onClick={handleExportClick}
+              disabled={trialStatus?.currentTier === 'free'}
+              title={trialStatus?.currentTier === 'free' ? "Premium feature" : "Export entries"}
               className="gap-2"
             >
               <Download className="h-4 w-4" />
