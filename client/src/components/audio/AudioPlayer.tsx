@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FileText, Play, Pause } from 'lucide-react';
 
 interface AudioPlayerProps {
@@ -12,59 +12,66 @@ interface AudioPlayerProps {
 export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscriptClick, transcript }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(new Audio(audioUrl));
 
-  const cleanupAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current.remove();
-      audioRef.current = null;
-    }
-    setIsPlaying(false);
-    setProgress(0);
-  }, []);
-
-  const togglePlayback = useCallback(() => {
-    if (isPlaying && audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-      return;
-    }
-
-    let audio = audioRef.current;
+  useEffect(() => {
+    const audio = audioRef.current;
     
-    // Create a new audio element if none exists
-    if (!audio) {
-      audio = new Audio(audioUrl);
-      audioRef.current = audio;
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+      setProgress((audio.currentTime / audio.duration) * 100);
+    };
 
-      const handleTimeUpdate = () => {
-        const currentProgress = (audio!.currentTime / audio!.duration) * 100;
-        setProgress(currentProgress);
-      };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setProgress(0);
+      setCurrentTime(0);
+      audio.currentTime = 0;
+    };
 
-      audio.addEventListener('timeupdate', handleTimeUpdate);
-      audio.addEventListener('ended', cleanupAudio);
-      
-      // Store the listeners to remove them later
-      audio.dataset.timeUpdateHandler = String(handleTimeUpdate);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, [audioUrl]);
+
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play()
+        .then(() => {
+          setIsPlaying(true);
+          onPlay();
+        })
+        .catch((error) => {
+          console.error('Error playing audio:', error);
+          setIsPlaying(false);
+        });
     }
+  };
 
-    audio.play()
-      .then(() => {
-        setIsPlaying(true);
-        onPlay();
-      })
-      .catch((error) => {
-        console.error('Error playing audio:', error);
-        cleanupAudio();
-      });
-  }, [audioUrl, isPlaying, onPlay, cleanupAudio]);
+  const formatDuration = (timeInSeconds: number) => {
+    if (timeInSeconds < 60) {
+      return `${Math.round(timeInSeconds)}s`;
+    }
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.round(timeInSeconds % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative">
+    <div className="flex items-center gap-4">
+      <div className="relative flex items-center">
         <button
           onClick={togglePlayback}
           className="p-2 hover:bg-secondary rounded-full"
@@ -76,14 +83,17 @@ export default function AudioPlayer({ audioUrl, duration = 0, onPlay, onTranscri
             <Play className="h-4 w-4" />
           )}
         </button>
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12">
-          <div className="h-1 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-red-500 transition-transform duration-100 ease-linear"
-              style={{ transform: `translateX(-${100 - progress}%)` }}
-            />
-          </div>
+
+        <div className="mx-2 w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-red-500 transition-all duration-100"
+            style={{ width: `${progress}%` }}
+          />
         </div>
+
+        <span className="text-xs text-muted-foreground min-w-[3ch]">
+          {formatDuration(currentTime)}
+        </span>
       </div>
       
       {transcript && (
