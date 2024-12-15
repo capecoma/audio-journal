@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 
@@ -6,7 +6,11 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  trialStartDate: timestamp("trial_start_date"),
+  trialEndDate: timestamp("trial_end_date"),
+  currentTier: text("current_tier").default('free').notNull(),
+  isTrialUsed: boolean("is_trial_used").default(false).notNull()
 });
 
 export const tags = pgTable("tags", {

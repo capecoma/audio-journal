@@ -1,19 +1,116 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { desc } from "drizzle-orm";
 import { db } from "@db";
-import { entries } from "@db/schema";
-import multer from "multer";
-import { db } from "@db";
-import { entries, summaries, tags, entryTags } from "@db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { entries, summaries, tags, entryTags, users } from "@db/schema";
+import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
+import multer from "multer";
+
+// Middleware to check trial status
+async function checkTrialStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = 1; // TODO: Get from auth
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId)
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // If trial is active, allow access
+    if (user.trialEndDate && user.trialEndDate > new Date()) {
+      return next();
+    }
+
+    // If user is on basic tier, allow access
+    if (user.currentTier === 'basic') {
+      return next();
+    }
+
+    // For free tier users, check feature restrictions
+    if (user.currentTier === 'free') {
+      // Add free tier restrictions here
+      return next();
+    }
+
+    return res.status(403).json({ error: "Feature not available in your current plan" });
+  } catch (error) {
+    console.error('Error checking trial status:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Trial Management Routes
+  app.post("/api/trial/activate", async (req, res) => {
+    try {
+      const userId = 1; // TODO: Get from auth
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.isTrialUsed) {
+        return res.status(400).json({ error: "Trial period already used" });
+      }
+
+      const trialStartDate = new Date();
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 10); // 10-day trial
+
+      await db.update(users)
+        .set({
+          trialStartDate,
+          trialEndDate,
+          isTrialUsed: true,
+          currentTier: 'trial'
+        })
+        .where(eq(users.id, userId));
+
+      res.json({
+        message: "Trial activated successfully",
+        trialEndDate
+      });
+    } catch (error) {
+      console.error('Error activating trial:', error);
+      res.status(500).json({ error: "Failed to activate trial" });
+    }
+  });
+
+  app.get("/api/trial/status", async (req, res) => {
+    try {
+      const userId = 1; // TODO: Get from auth
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const now = new Date();
+      const isTrialActive = user.trialEndDate && user.trialEndDate > now;
+
+      res.json({
+        currentTier: user.currentTier,
+        isTrialActive,
+        trialUsed: user.isTrialUsed,
+        trialEndDate: user.trialEndDate,
+        trialStartDate: user.trialStartDate
+      });
+    } catch (error) {
+      console.error('Error fetching trial status:', error);
+      res.status(500).json({ error: "Failed to fetch trial status" });
+    }
+  });
   // Get entries for the current user with optional search
-  app.get("/api/entries", async (req, res) => {
+  app.get("/api/entries", checkTrialStatus, async (req, res) => {
     try {
       const { search } = req.query;
       const queryConfig = {
