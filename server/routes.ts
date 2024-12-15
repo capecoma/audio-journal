@@ -325,7 +325,7 @@ export function registerRoutes(app: Express): Server {
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
-      const entries = await db.query.entries.findMany({
+      const userEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -336,7 +336,7 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = entries.map(entry => ({
+      const exportData = userEntries.map(entry => ({
         date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
@@ -359,7 +359,7 @@ ${entry.transcript}
       res.send(exportContent);
     } catch (error) {
       console.error('Error exporting entries:', error);
-      res.status(500).json({ message: "Failed to export entries" });
+      res.status(500).json({ error: "Failed to export entries" });
     }
   });
 
