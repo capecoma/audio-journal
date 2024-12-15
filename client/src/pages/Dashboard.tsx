@@ -33,14 +33,25 @@ export default function Dashboard() {
   };
 
   const handleTagSelect = async (entryId: number, tagId: number) => {
-    const response = await fetch(`/api/entries/${entryId}/tags`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tagIds: [tagId] }),
-    });
+    try {
+      const response = await fetch(`/api/entries/${entryId}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagId }),
+      });
 
-    if (!response.ok) {
-      throw new Error("Failed to update entry tags");
+      if (!response.ok) {
+        throw new Error("Failed to update entry tags");
+      }
+
+      // Invalidate the queries for this specific entry's tags
+      queryClient.invalidateQueries({ queryKey: ["/api/entries", entryId, "tags"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 

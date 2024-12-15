@@ -140,33 +140,44 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/entries/:entryId/tags", async (req, res) => {
     try {
       const entryId = parseInt(req.params.entryId);
-      const { tagIds } = req.body;
+      const { tagId } = req.body;
 
-      if (!Array.isArray(tagIds)) {
-        return res.status(400).json({ error: "tagIds must be an array" });
+      if (typeof tagId !== 'number') {
+        return res.status(400).json({ error: "tagId must be a number" });
       }
 
-      // Add new tags
-      await Promise.all(
-        tagIds.map((tagId) =>
-          db.insert(entryTags)
-            .values({ entryId, tagId })
-            .onConflictDoNothing()
-        )
-      );
+      // Check if the tag is already applied
+      const [existingTag] = await db
+        .select()
+        .from(entryTags)
+        .where(and(
+          eq(entryTags.entryId, entryId),
+          eq(entryTags.tagId, tagId)
+        ))
+        .limit(1);
 
-      const entry = await db.query.entries.findFirst({
-        where: eq(entries.id, entryId),
+      if (existingTag) {
+        // If tag exists, remove it (toggle behavior)
+        await db.delete(entryTags)
+          .where(and(
+            eq(entryTags.entryId, entryId),
+            eq(entryTags.tagId, tagId)
+          ));
+      } else {
+        // If tag doesn't exist, add it
+        await db.insert(entryTags)
+          .values({ entryId, tagId });
+      }
+
+      // Get updated tags for the entry
+      const tags = await db.query.entryTags.findMany({
+        where: eq(entryTags.entryId, entryId),
         with: {
-          tags: {
-            with: {
-              tag: true,
-            },
-          },
+          tag: true,
         },
       });
 
-      res.json(entry);
+      res.json(tags.map(t => t.tag));
     } catch (error) {
       res.status(500).json({ error: "Failed to update entry tags" });
     }
