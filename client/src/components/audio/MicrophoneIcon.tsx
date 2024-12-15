@@ -7,12 +7,12 @@ interface MicrophoneIconProps {
 export default function MicrophoneIcon({ isRecording }: MicrophoneIconProps) {
   return (
     <motion.svg
-      width="100"
-      height="100"
+      width="400"
+      height="400"
       viewBox="0 0 100 100"
       initial="idle"
       animate={isRecording ? "recording" : "idle"}
-      className="w-24 h-24"
+      className="w-96 h-96"
     >
       {/* Base stand */}
       <motion.path

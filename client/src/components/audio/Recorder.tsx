@@ -76,7 +76,7 @@ export default function Recorder({ onRecordingComplete }: RecorderProps) {
         <>
           <button
             onClick={isRecording ? stopRecording : startRecording}
-            className={`w-32 h-32 flex items-center justify-center rounded-full transition-colors ${
+            className={`w-96 h-96 flex items-center justify-center rounded-full transition-colors ${
               isRecording 
                 ? "bg-destructive/10 hover:bg-destructive/20" 
                 : "hover:bg-primary/5"
