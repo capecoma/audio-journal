@@ -21,7 +21,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search transcripts..."
-            value={searchQuery}
+            value={searchQuery ?? ''}
             onChange={(e) => onSearch(e.target.value)}
             className="pl-9"
           />
@@ -35,7 +35,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col">
                     <span className="font-medium">
-                      {format(new Date(entry.createdAt), "PPp")}
+                      {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       Duration: {Math.round(entry.duration! / 60)}min

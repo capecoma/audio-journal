@@ -52,7 +52,8 @@ Please format the summary in a clear, readable way with bullet points for key ta
       max_tokens: 500,
     });
 
-    return response.choices[0].message.content;
+    const content = response.choices[0].message.content;
+    return content ?? 'Failed to generate summary';
   } catch (error) {
     console.error("Summary generation error:", error);
     throw new Error("Failed to generate summary");
