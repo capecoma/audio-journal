@@ -9,8 +9,6 @@ import type { Entry, Summary } from "@db/schema";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<number[]>([]);
-  
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
     queryFn: async () => {
@@ -64,7 +62,6 @@ export default function Dashboard() {
           onPlay={handlePlayEntry}
           onSearch={setSearchQuery}
           searchQuery={searchQuery}
-          selectedTags={selectedTags}
           onTagSelect={handleTagSelect}
         />
         <DailySummary summaries={summaries} />

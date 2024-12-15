@@ -5,17 +5,17 @@ import { Play, FileText, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { Entry } from "@db/schema";
 import TagList from "./TagList";
+import { useQuery } from "@tanstack/react-query";
 
 interface EntryListProps {
   entries: Entry[];
   onPlay: (entry: Entry) => void;
   onSearch: (query: string) => void;
   searchQuery: string;
-  selectedTags: number[];
   onTagSelect: (entryId: number, tagId: number) => void;
 }
 
-export default function EntryList({ entries, onPlay, onSearch, searchQuery, selectedTags, onTagSelect }: EntryListProps) {
+export default function EntryList({ entries, onPlay, onSearch, searchQuery, onTagSelect }: EntryListProps) {
   return (
     <Card className="h-[600px]">
       <CardHeader>
@@ -65,7 +65,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery, sele
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       <TagList 
-                        selectedTags={selectedTags}
+                        entryId={entry.id}
                         onTagSelect={(tagId) => onTagSelect(entry.id, tagId)}
                       />
                     </div>

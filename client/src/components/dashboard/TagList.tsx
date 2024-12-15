@@ -7,16 +7,20 @@ import { Plus } from "lucide-react";
 import type { SelectTag } from "@db/schema";
 
 interface TagListProps {
-  selectedTags: number[];
+  entryId: number;
   onTagSelect: (tagId: number) => void;
 }
 
-export default function TagList({ selectedTags, onTagSelect }: TagListProps) {
+export default function TagList({ entryId, onTagSelect }: TagListProps) {
   const [newTagName, setNewTagName] = useState("");
   const queryClient = useQueryClient();
 
   const { data: tags = [] } = useQuery<SelectTag[]>({
     queryKey: ["/api/tags"],
+  });
+
+  const { data: entryTags = [] } = useQuery<SelectTag[]>({
+    queryKey: ["/api/entries", entryId, "tags"],
   });
 
   const createTagMutation = useMutation({
@@ -62,7 +66,7 @@ export default function TagList({ selectedTags, onTagSelect }: TagListProps) {
         {tags.map((tag) => (
           <Badge
             key={tag.id}
-            variant={selectedTags.includes(tag.id) ? "default" : "outline"}
+            variant={entryTags.some(t => t.id === tag.id) ? "default" : "outline"}
             className="cursor-pointer"
             onClick={() => onTagSelect(tag.id)}
           >

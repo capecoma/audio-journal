@@ -68,7 +68,8 @@ export type NewUser = typeof users.$inferInsert;
 
 export const insertTagSchema = createInsertSchema(tags);
 export const selectTagSchema = createSelectSchema(tags);
-export type Tag = typeof tags.$inferSelect;
+export type SelectTag = typeof tags.$inferSelect;
+export type Tag = SelectTag;  // For backwards compatibility
 export type NewTag = typeof tags.$inferInsert;
 
 export const insertEntrySchema = createInsertSchema(entries);
