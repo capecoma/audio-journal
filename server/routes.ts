@@ -17,20 +17,29 @@ async function checkAndUpdateTrialStatus(userId: number) {
   }
 
   const now = new Date();
-  let currentTier = user.currentTier;
+  const trialEndDate = user.trialEndDate ? new Date(user.trialEndDate) : null;
+  const isExpired = trialEndDate && trialEndDate <= now;
   
-  // Check if trial has expired and update tier if needed
-  if (currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) <= now) {
+  // Only update if currently in trial and it's expired
+  if (user.currentTier === 'trial' && isExpired) {
     await db.update(users)
       .set({ currentTier: 'basic' })
       .where(eq(users.id, userId));
-    currentTier = 'basic';
+    
+    return {
+      ...user,
+      currentTier: 'basic',
+      isTrialActive: false,
+      trialEndDate: user.trialEndDate,
+      trialStartDate: user.trialStartDate
+    };
   }
 
+  // Return current state without modification
   return {
     ...user,
-    currentTier,
-    isTrialActive: currentTier === 'trial' && user.trialEndDate && new Date(user.trialEndDate) > now
+    currentTier: user.currentTier,
+    isTrialActive: user.currentTier === 'trial' && trialEndDate && trialEndDate > now
   };
 }
 
