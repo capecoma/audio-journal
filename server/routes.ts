@@ -164,7 +164,12 @@ export function registerRoutes(app: Express): Server {
   // Usage analytics endpoint
   app.get("/api/analytics", async (_req, res) => {
     try {
-      const entries = await db.query.entries.findMany({
+      // Get user ID from context
+      const userId = _req.app.locals.userId;
+      
+      // Fetch entries for the user
+      const userEntries = await db.query.entries.findMany({
+        where: eq(entries.userId, userId),
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -175,16 +180,21 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      // Get summary count for the user
+      const summaryCount = await db.query.summaries.findMany({
+        where: eq(summaries.userId, userId)
+      }).then(results => results.length);
+
       // Calculate usage statistics
       const featureUsage = [
-        { feature: "Total Recordings", count: entries.length },
-        { feature: "Transcribed Entries", count: entries.filter(entry => entry.transcript).length },
-        { feature: "Tagged Entries", count: entries.filter(entry => entry.entryTags?.length > 0).length },
-        { feature: "Daily Summaries", count: await db.query.summaries.findMany().then(s => s.length) },
+        { feature: "Total Recordings", count: userEntries.length },
+        { feature: "Transcribed Entries", count: userEntries.filter(entry => entry.transcript).length },
+        { feature: "Tagged Entries", count: userEntries.filter(entry => entry.entryTags?.length > 0).length },
+        { feature: "Daily Summaries", count: summaryCount },
       ];
 
       // Calculate monthly usage trends
-      const monthlyStats: Record<string, number> = entries.reduce((acc: Record<string, number>, entry) => {
+      const monthlyStats = userEntries.reduce((acc: Record<string, number>, entry) => {
         if (entry.createdAt) {
           const month = new Date(entry.createdAt).toLocaleString('default', { month: 'long' });
           acc[month] = (acc[month] || 0) + 1;
@@ -192,13 +202,17 @@ export function registerRoutes(app: Express): Server {
         return acc;
       }, {} as Record<string, number>);
 
-      res.json({
+      // Format response
+      const response = {
         featureUsage,
         monthlyStats: Object.entries(monthlyStats).map(([month, count]) => ({
           month,
           count
         }))
-      });
+      };
+
+      console.log('Analytics response:', response);
+      res.json(response);
     } catch (error) {
       console.error('Error fetching analytics:', error);
       res.status(500).json({ error: "Failed to fetch analytics" });
