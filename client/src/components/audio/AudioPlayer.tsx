@@ -15,7 +15,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(duration);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -24,7 +24,11 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     if (!audio) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => setAudioDuration(audio.duration);
+    const handleDurationChange = () => {
+      if (audio.duration && !isNaN(audio.duration)) {
+        setAudioDuration(audio.duration);
+      }
+    };
     const handleEnded = () => setIsPlaying(false);
 
     audio.addEventListener('timeupdate', updateTime);
