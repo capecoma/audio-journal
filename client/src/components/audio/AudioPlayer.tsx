@@ -29,55 +29,44 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     };
 
     const handleLoadedMetadata = () => {
-      // Use the audio's actual duration if available, otherwise fallback to prop
-      const actualDuration = audio.duration;
-      if (!isNaN(actualDuration) && actualDuration > 0) {
-        setAudioDuration(actualDuration);
-      } else if (duration && duration > 0) {
-        setAudioDuration(duration);
-      }
-    };
-
-    const handleDurationChange = () => {
-      const newDuration = audio.duration;
-      if (!isNaN(newDuration) && newDuration > 0) {
-        setAudioDuration(newDuration);
+      // Get the duration from the audio element
+      const audioElementDuration = audio.duration;
+      
+      // Only update if we have a valid duration
+      if (!isNaN(audioElementDuration) && audioElementDuration > 0) {
+        setAudioDuration(audioElementDuration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      if (!isNaN(audioDuration)) {
-        setCurrentTime(audioDuration);
-      }
+      setCurrentTime(audioDuration);
     };
 
-    // Reset states
+    // Reset states when audio source changes
     setCurrentTime(0);
     setIsPlaying(false);
-    
-    // Try to get duration immediately if already loaded
-    if (!isNaN(audio.duration) && audio.duration > 0) {
-      setAudioDuration(audio.duration);
-    } else if (duration && duration > 0) {
+
+    // Set initial duration from props if available
+    if (duration && duration > 0) {
       setAudioDuration(duration);
     }
-    
-    // Force load audio metadata
-    audio.load();
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('durationchange', handleLoadedMetadata); // Use same handler for both events
     audio.addEventListener('ended', handleEnded);
+
+    // Explicitly load the audio to trigger metadata loading
+    audio.load();
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('durationchange', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl, duration, audioDuration]); // Re-run when audio source changes
+  }, [audioUrl, duration]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -177,8 +166,14 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
       </div>
       <audio 
         ref={audioRef} 
-        src={audioUrl} 
+        src={audioUrl}
         preload="metadata"
+        onLoadedMetadata={(e) => {
+          const audio = e.currentTarget;
+          if (!isNaN(audio.duration) && audio.duration > 0) {
+            setAudioDuration(audio.duration);
+          }
+        }}
         className="hidden" 
       />
     </div>
