@@ -11,11 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Entry } from "@db/schema";
-import type { TrialStatus } from "@/types/trial";
 import TagList from "./TagList";
 import { useState } from "react";
 import AudioPlayer from "@/components/audio/AudioPlayer";
-import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 interface EntryListProps {
@@ -25,39 +23,11 @@ interface EntryListProps {
   searchQuery: string;
 }
 
-// Get trial status using React Query
-function useTrialStatus() {
-  const { data: trialStatus } = useQuery<TrialStatus>({
-    queryKey: ['/api/trial/status'],
-  });
-  return trialStatus;
-}
-
 export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
   const [selectedTranscript, setSelectedTranscript] = useState<{ text: string | undefined; date: string } | null>(null);
-  const trialStatus = useTrialStatus();
   const { toast } = useToast();
 
   const handleExportClick = () => {
-    if (trialStatus?.currentTier === 'free') {
-      toast({
-        title: "Premium Feature",
-        description: trialStatus?.currentTier === 'free' && !trialStatus.trialUsed
-          ? "Start your free trial to export journal entries"
-          : "Upgrade to export your journal entries",
-        variant: "default",
-        action: trialStatus?.currentTier === 'free' && !trialStatus.trialUsed
-          ? <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => window.location.href = '/trial'}
-            >
-              Start Trial
-            </Button>
-          : undefined
-      });
-      return;
-    }
     window.open('/api/entries/export', '_blank');
   };
 
@@ -73,17 +43,10 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {trialStatus?.currentTier === 'free' && (
-                <div className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">
-                  Premium Feature
-                </div>
-              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleExportClick}
-                disabled={trialStatus?.currentTier === 'free'}
-                title={trialStatus?.currentTier === 'free' ? "Upgrade to export entries" : "Export entries"}
                 className="gap-2"
               >
                 <Download className="h-4 w-4" />
@@ -134,7 +97,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                           duration={typeof entry.duration === 'number' ? entry.duration : 0}
                           onTranscriptClick={() => setSelectedTranscript({
                             text: entry.transcript!,
-                            date: format(new Date(entry.createdAt!), "PPpp")
+                            date: entry.createdAt ? format(new Date(entry.createdAt), "PPpp") : "No date"
                           })}
                           transcript={entry.transcript}
                         />
