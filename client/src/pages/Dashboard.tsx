@@ -8,7 +8,6 @@ import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
 import Navigation from "@/components/layout/Navigation";
 import type { Entry, Summary } from "@db/schema";
-import type { TrialStatus } from "@/types/trial";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
