@@ -14,30 +14,48 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(duration);
+  const [audioDuration, setAudioDuration] = useState(duration || 0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+
+  // Reset duration when prop changes
+  useEffect(() => {
+    setAudioDuration(duration || 0);
+  }, [duration]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const updateTime = () => {
-      if (audio.currentTime >= 0) {
-        setCurrentTime(audio.currentTime);
+      const time = audio.currentTime;
+      if (time >= 0 && !isNaN(time)) {
+        setCurrentTime(time);
       }
     };
 
     const handleLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration)) {
-        setAudioDuration(audio.duration);
+      const duration = audio.duration;
+      if (duration && !isNaN(duration)) {
+        setAudioDuration(duration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      setCurrentTime(audio.duration);
+      const finalTime = audio.duration;
+      if (finalTime && !isNaN(finalTime)) {
+        setCurrentTime(finalTime);
+      }
     };
+
+    // Reset current time
+    setCurrentTime(0);
+    
+    // Try to get duration immediately if already loaded
+    if (audio.duration && !isNaN(audio.duration)) {
+      setAudioDuration(audio.duration);
+    }
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -48,7 +66,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, []);
+  }, [audioUrl]); // Re-run when audio source changes
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -78,6 +96,9 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   };
 
   const formatTime = (time: number) => {
+    if (!time || isNaN(time)) {
+      return '0:00';
+    }
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
