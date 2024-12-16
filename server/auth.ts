@@ -100,11 +100,18 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      if (!req.body.username || !req.body.password) {
+        return res.status(400).json({
+          message: "Username and password are required"
+        });
+      }
+
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        return res
-          .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+        return res.status(400).json({
+          message: "Validation failed",
+          errors: result.error.issues.map(i => i.message)
+        });
       }
 
       const { username, password } = result.data;

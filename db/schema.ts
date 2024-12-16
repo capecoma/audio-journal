@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
+import { z } from "zod";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -9,6 +10,17 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
   isAdmin: boolean("is_admin").default(false).notNull()
 });
+
+// Create the schema with proper validation
+export const insertUserSchema = createInsertSchema(users).extend({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const selectUserSchema = createSelectSchema(users);
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type SelectUser = User;
 
 export const tags = pgTable("tags", {
   id: serial("id").primaryKey(),
@@ -44,19 +56,12 @@ export const summaries = pgTable("summaries", {
 });
 
 // Relations
-// Define relations with proper typing and references
 export const entriesRelations = relations(entries, ({ many }) => ({
-  entryTags: many(entryTags, {
-    fields: [entries.id],
-    references: [entryTags.entryId],
-  }),
+  entryTags: many(entryTags)
 }));
 
 export const tagsRelations = relations(tags, ({ many }) => ({
-  entryTags: many(entryTags, {
-    fields: [tags.id],
-    references: [entryTags.tagId],
-  }),
+  entryTags: many(entryTags)
 }));
 
 export const entryTagsRelations = relations(entryTags, ({ one }) => ({
@@ -70,17 +75,11 @@ export const entryTagsRelations = relations(entryTags, ({ one }) => ({
   }),
 }));
 
-// Schemas and Types
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type SelectUser = User;  // For backwards compatibility
-
+// Additional type exports
 export const insertTagSchema = createInsertSchema(tags);
 export const selectTagSchema = createSelectSchema(tags);
 export type SelectTag = typeof tags.$inferSelect;
-export type Tag = SelectTag;  // For backwards compatibility
+export type Tag = SelectTag;
 export type NewTag = typeof tags.$inferInsert;
 
 export const insertEntrySchema = createInsertSchema(entries);
