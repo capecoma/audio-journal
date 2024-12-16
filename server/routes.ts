@@ -5,6 +5,7 @@ import { entries, summaries, tags, entryTags, users } from "@db/schema";
 import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
+import { validateFileUpload, encryptData, decryptData } from './middleware/security';
 
 // Simple middleware for user context
 async function addUserContext(req: Request, res: Response, next: NextFunction) {
@@ -51,7 +52,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Upload new entry
-  app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
+  app.post("/api/entries/upload", upload.single("audio"), validateFileUpload, async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -78,7 +79,7 @@ export function registerRoutes(app: Express): Server {
 
       // Create entry
       const [entry] = await db.insert(entries).values({
-        audioUrl,
+        audioUrl: encryptData(audioUrl), // Encrypt sensitive data
         transcript,
         duration,
         userId: 1, // TODO: Get from auth
@@ -140,7 +141,13 @@ export function registerRoutes(app: Express): Server {
           set: { highlightText: summaryText },
         });
 
-      res.json(entry);
+      // Decrypt audioUrl before sending response
+      const decryptedEntry = {
+        ...entry,
+        audioUrl: decryptData(entry.audioUrl),
+      };
+
+      res.json(decryptedEntry);
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message || "Failed to process entry" });
@@ -212,7 +219,6 @@ export function registerRoutes(app: Express): Server {
         }))
       };
 
-      console.log('Analytics response:', response);
       res.json(response);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -235,7 +241,7 @@ export function registerRoutes(app: Express): Server {
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
-      const entries = await db.query.entries.findMany({
+      const userEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -246,11 +252,11 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = entries.map(entry => ({
+      const exportData = userEntries.map(entry => ({
         date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
-        audioUrl: entry.audioUrl,
+        audioUrl: decryptData(entry.audioUrl), // Decrypt before export
         duration: entry.duration ?? 0
       }));
 
