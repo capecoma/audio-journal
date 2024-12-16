@@ -14,7 +14,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const [audioDuration, setAudioDuration] = useState(duration);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -22,9 +22,8 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Initialize with prop duration
-    if (duration > 0) {
-      console.log('Setting initial duration from prop:', duration);
+    // Initialize with prop duration if available
+    if (typeof duration === 'number' && duration > 0) {
       setAudioDuration(duration);
     }
 
@@ -114,13 +113,13 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     }
   }, [duration]);
 
-  const formatTime = (time: number) => {
+  const formatTime = (time: number | undefined) => {
     if (typeof time !== 'number' || isNaN(time) || !isFinite(time) || time < 0) {
       return '0:00';
     }
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
