@@ -18,11 +18,6 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Reset duration when prop changes
-  useEffect(() => {
-    setAudioDuration(duration || 0);
-  }, [duration]);
-
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -34,15 +29,26 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     };
 
     const handleLoadedMetadata = () => {
-      if (!isNaN(audio.duration)) {
-        setAudioDuration(audio.duration);
+      // Use the audio's actual duration if available, otherwise fallback to prop
+      const actualDuration = audio.duration;
+      if (!isNaN(actualDuration) && actualDuration > 0) {
+        setAudioDuration(actualDuration);
+      } else if (duration && duration > 0) {
+        setAudioDuration(duration);
+      }
+    };
+
+    const handleDurationChange = () => {
+      const newDuration = audio.duration;
+      if (!isNaN(newDuration) && newDuration > 0) {
+        setAudioDuration(newDuration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      if (!isNaN(audio.duration)) {
-        setCurrentTime(audio.duration);
+      if (!isNaN(audioDuration)) {
+        setCurrentTime(audioDuration);
       }
     };
 
@@ -50,19 +56,28 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     setCurrentTime(0);
     setIsPlaying(false);
     
+    // Try to get duration immediately if already loaded
+    if (!isNaN(audio.duration) && audio.duration > 0) {
+      setAudioDuration(audio.duration);
+    } else if (duration && duration > 0) {
+      setAudioDuration(duration);
+    }
+    
     // Force load audio metadata
     audio.load();
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl]); // Re-run when audio source changes
+  }, [audioUrl, duration, audioDuration]); // Re-run when audio source changes
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -91,12 +106,19 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     setIsMuted(!isMuted);
   };
 
+  // Update duration when prop changes
+  useEffect(() => {
+    if (duration && duration > 0) {
+      setAudioDuration(duration);
+    }
+  }, [duration]);
+
   const formatTime = (time: number) => {
-    if (typeof time !== 'number' || isNaN(time) || !isFinite(time)) {
+    if (typeof time !== 'number' || isNaN(time) || !isFinite(time) || time < 0) {
       return '0:00';
     }
-    const minutes = Math.floor(Math.max(0, time) / 60);
-    const seconds = Math.floor(Math.max(0, time) % 60);
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
