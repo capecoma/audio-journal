@@ -38,6 +38,9 @@ export function registerRoutes(app: Express): Server {
   // Setup authentication
   setupAuth(app);
   
+  // Setup Authentication first
+  setupAuth(app);
+
   // Apply authentication to all API routes except login/register
   app.use('/api', (req, res, next) => {
     if (req.path.match(/^\/api\/(login|register|user)$/)) {
@@ -45,10 +48,6 @@ export function registerRoutes(app: Express): Server {
     }
     requireAuth(req, res, next);
   });
-
-  // Setup Authentication
-  setupAuth(app);
-
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -307,31 +306,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Admin-specific analytics (requires authentication check)
-  app.get("/api/admin/analytics", async (req, res) => {
-    try {
-      // Assuming authentication middleware sets req.user.isAdmin
-      if (!req.user?.isAdmin) {
-        return res.status(403).json({ error: "Unauthorized" });
-      }
-      // Fetch all user entries and summaries
-      const allEntries = await db.query.entries.findMany({});
-      const allSummaries = await db.query.summaries.findMany({});
-
-      //Perform Admin Analytics Calculations here...
-
-      const adminAnalytics = {
-          totalUsers: await db.query.users.count(),
-          totalEntries: allEntries.length,
-          totalSummaries: allSummaries.length
-      };
-
-      res.json(adminAnalytics);
-    } catch (error) {
-      console.error('Error fetching admin analytics:', error);
-      res.status(500).json({ error: "Failed to fetch admin analytics" });
-    }
-  });
+  // The more detailed analytics endpoint is already implemented above
 
   // Tag management endpoints
   app.get("/api/tags", async (_req, res) => {

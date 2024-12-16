@@ -6,7 +6,8 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  isAdmin: boolean("is_admin").default(false).notNull()
 });
 
 export const tags = pgTable("tags", {
@@ -74,6 +75,7 @@ export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type SelectUser = User;  // For backwards compatibility
 
 export const insertTagSchema = createInsertSchema(tags);
 export const selectTagSchema = createSelectSchema(tags);
