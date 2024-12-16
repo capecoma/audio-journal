@@ -18,29 +18,49 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const [audioDuration, setAudioDuration] = useState(duration);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => {
+    // Reset state when audio URL changes
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setIsLoaded(false);
+    setAudioDuration(duration);
+
+    const updateTime = () => {
+      if (audio.currentTime >= 0) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      setIsLoaded(true);
       if (audio.duration && !isNaN(audio.duration)) {
         setAudioDuration(audio.duration);
       }
     };
-    const handleEnded = () => setIsPlaying(false);
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(audio.duration);
+    };
 
     audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
+
+    // Load the audio
+    audio.load();
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, []);
+  }, [audioUrl, duration]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -49,14 +69,19 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
-  const togglePlayPause = () => {
-    if (audioRef.current) {
+  const togglePlayPause = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    try {
       if (isPlaying) {
-        audioRef.current.pause();
+        await audio.pause();
       } else {
-        audioRef.current.play();
+        await audio.play();
       }
       setIsPlaying(!isPlaying);
+    } catch (error) {
+      console.error('Error toggling playback:', error);
     }
   };
 
@@ -78,6 +103,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
           size="icon"
           onClick={togglePlayPause}
           className="h-10 w-10"
+          disabled={!isLoaded}
         >
           {isPlaying ? (
             <PauseCircle className="h-6 w-6" />
@@ -96,6 +122,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             size="icon"
             onClick={toggleMute}
             className="h-8 w-8"
+            disabled={!isLoaded}
           >
             {isMuted ? (
               <VolumeX className="h-4 w-4" />
@@ -110,6 +137,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             step={1}
             className="w-20"
             onValueChange={([value]) => setVolume(value / 100)}
+            disabled={!isLoaded}
           />
         </div>
         {transcript && (
@@ -123,8 +151,16 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
           </Button>
         )}
       </div>
-      <Progress value={(currentTime / audioDuration) * 100} className="h-1" />
-      <audio ref={audioRef} src={audioUrl} className="hidden" />
+      <Progress 
+        value={isLoaded ? (currentTime / audioDuration) * 100 : 0} 
+        className="h-1" 
+      />
+      <audio 
+        ref={audioRef} 
+        src={audioUrl} 
+        preload="metadata"
+        className="hidden" 
+      />
     </div>
   );
 }
