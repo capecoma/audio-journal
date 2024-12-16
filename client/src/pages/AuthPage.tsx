@@ -48,7 +48,14 @@ export default function AuthPage() {
 
       console.log('Submitting form data:', formData); // Debug log
       
-      const result = await (action === "login" ? login(formData) : register(formData));
+      // Ensure proper structure of form data
+      const payload = {
+        username: formData.username.trim(),
+        password: formData.password
+      };
+      console.log('Request payload:', payload); // Debug log
+      
+      const result = await (action === "login" ? login(payload) : register(payload));
       
       if (!result.ok) {
         const errorMessage = result.message;

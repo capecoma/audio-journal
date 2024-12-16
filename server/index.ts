@@ -12,21 +12,34 @@ if (!process.env.OPENAI_API_KEY) {
 
 const app = express();
 
-// Basic middleware for parsing requests
+// Debug middleware to log raw request
+app.use((req, res, next) => {
+  if (req.path === '/api/register') {
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      console.log('Raw request body:', data);
+      console.log('Content-Type:', req.headers['content-type']);
+    });
+  }
+  next();
+});
+
+// Body parsing middleware must come first
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Security middlewares
-import { apiLimiter, securityHeaders, sanitizeInput } from './middleware/security';
+import { apiLimiter, securityHeaders } from './middleware/security';
 app.use(securityHeaders);
 app.use('/api', apiLimiter);
-app.use(sanitizeInput);
 
-// Debug middleware for request body
+// Debug middleware for parsed body
 app.use((req, res, next) => {
   if (req.path === '/api/register') {
-    console.log('Request headers:', req.headers);
-    console.log('Request body:', req.body);
+    console.log('Parsed request body:', req.body);
   }
   next();
 });
