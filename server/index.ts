@@ -12,15 +12,24 @@ if (!process.env.OPENAI_API_KEY) {
 
 const app = express();
 
+// Basic middleware for parsing requests
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
 // Security middlewares
 import { apiLimiter, securityHeaders, sanitizeInput } from './middleware/security';
 app.use(securityHeaders);
 app.use('/api', apiLimiter);
-
-// Basic middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 app.use(sanitizeInput);
+
+// Debug middleware for request body
+app.use((req, res, next) => {
+  if (req.path === '/api/register') {
+    console.log('Request headers:', req.headers);
+    console.log('Request body:', req.body);
+  }
+  next();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {

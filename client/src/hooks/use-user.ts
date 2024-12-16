@@ -16,7 +16,10 @@ async function handleRequest(
   try {
     const response = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: body ? JSON.stringify(body) : undefined,
       credentials: "include",
     });
