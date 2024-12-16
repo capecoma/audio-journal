@@ -6,104 +6,15 @@ import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 
-// Function to check and update trial status
-async function checkAndUpdateTrialStatus(userId: number) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId)
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  const now = new Date();
-  const trialEndDate = user.trialEndDate ? new Date(user.trialEndDate) : null;
-  const isExpired = trialEndDate && trialEndDate <= now;
-  
-  // Automatically downgrade expired trials
-  if (user.currentTier === 'trial' && isExpired) {
-    const updatedUser = await db.update(users)
-      .set({ currentTier: 'basic' })
-      .where(eq(users.id, userId))
-      .returning()
-      .execute();
-
-    return {
-      ...updatedUser[0],
-      isTrialActive: false,
-      trialEndDate: user.trialEndDate,
-      trialStartDate: user.trialStartDate
-    };
-  }
-
-  return {
-    ...user,
-    isTrialActive: user.currentTier === 'trial' && !isExpired
-  };
-}
-
-// Middleware to check trial status
-async function checkTrialStatus(req: Request, res: Response, next: NextFunction) {
+// Simple middleware for user context
+async function addUserContext(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = 1; // TODO: Get from auth
-    const user = await checkAndUpdateTrialStatus(userId);
-
-    // Define feature access by tier
-    const restrictedRoutes = {
-      // Routes that require trial or basic tier
-      premium: [
-        '/api/entries/export',
-        '/api/summaries/daily',
-        '/api/trial/analytics'
-      ],
-      // Routes accessible by all tiers but with limits for free tier
-      limited: [
-        '/api/entries',
-        '/api/entries/upload'
-      ]
-    };
-
-    // Check if accessing a premium route
-    const isPremiumRoute = restrictedRoutes.premium.some(route => req.path.startsWith(route));
-    const isLimitedRoute = restrictedRoutes.limited.some(route => req.path.startsWith(route));
-
-    // Block premium features for free tier
-    if (isPremiumRoute && user.currentTier === 'free') {
-      return res.status(403).json({
-        error: "Premium feature",
-        detail: !user.isTrialUsed ? 
-          "Start your free trial to access this feature" :
-          "Upgrade to access premium features",
-        canStartTrial: !user.isTrialUsed
-      });
-    }
-
-    // Check free tier limits
-    if (isLimitedRoute && user.currentTier === 'free') {
-      const entryCount = await db.select().from(entries)
-        .where(eq(entries.userId, userId));
-
-      if (entryCount.length >= 5 && req.method === 'POST') {
-        return res.status(403).json({
-          error: "Free tier limit reached",
-          detail: "You've reached the limit of 5 entries. Start your trial or upgrade to create more.",
-          canStartTrial: !user.isTrialUsed
-        });
-      }
-    }
-
-    // Store user status in request for route handlers
-    req.app.locals.userTier = {
-      currentTier: user.currentTier,
-      isTrialActive: user.isTrialActive,
-      trialEndDate: user.trialEndDate,
-      trialStartDate: user.trialStartDate,
-      isTrialUsed: user.isTrialUsed
-    };
-
+    // Add basic user context without trial/tier restrictions
+    req.app.locals.userId = userId;
     next();
   } catch (error) {
-    console.error('Error checking trial status:', error);
+    console.error('Error adding user context:', error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -114,72 +25,8 @@ export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
   
-  // Apply trial status middleware to all API routes
-  app.use('/api', checkTrialStatus);
-
-  // Trial Management Routes
-  app.post("/api/trial/activate", async (req, res) => {
-    try {
-      const userId = 1; // TODO: Get from auth
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, userId)
-      });
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      if (user.isTrialUsed) {
-        return res.status(400).json({ error: "Trial period already used" });
-      }
-
-      const trialStartDate = new Date();
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 10); // 10-day trial
-
-      await db.update(users)
-        .set({
-          trialStartDate,
-          trialEndDate,
-          isTrialUsed: true,
-          currentTier: 'trial'
-        })
-        .where(eq(users.id, userId));
-
-      res.json({
-        message: "Trial activated successfully",
-        trialEndDate
-      });
-    } catch (error) {
-      console.error('Error activating trial:', error);
-      res.status(500).json({ error: "Failed to activate trial" });
-    }
-  });
-
-  app.get("/api/trial/status", async (req, res) => {
-    try {
-      const userId = 1; // TODO: Get from auth
-      const user = await checkAndUpdateTrialStatus(userId);
-
-      // Get entry count for free tier users
-      const userEntries = await db.select().from(entries).where(eq(entries.userId, userId));
-      const entryCount = user.currentTier === 'free' ? userEntries.length : null;
-      const freeEntryLimit = 5;
-
-      res.json({
-        currentTier: user.currentTier,
-        isTrialActive: user.isTrialActive,
-        trialUsed: user.isTrialUsed,
-        trialEndDate: user.trialEndDate,
-        trialStartDate: user.trialStartDate,
-        entryCount: entryCount,
-        entryLimit: user.currentTier === 'free' ? freeEntryLimit : null
-      });
-    } catch (error) {
-      console.error('Error fetching trial status:', error);
-      res.status(500).json({ error: "Failed to fetch trial status" });
-    }
-  });
+  // Apply user context middleware to all API routes
+  app.use('/api', addUserContext);
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {

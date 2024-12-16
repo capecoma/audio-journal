@@ -4,16 +4,12 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Home } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Journal from "./pages/Journal";
-import { TrialPage } from "./pages/TrialPage";
-import { TrialAnalytics } from "./pages/TrialAnalytics";
 
 function App() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
-      <Route path="/trial" component={TrialPage} />
-      <Route path="/trial/analytics" component={TrialAnalytics} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -16,11 +16,6 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Get trial status
-  const { data: trialStatus } = useQuery<TrialStatus>({
-    queryKey: ['/api/trial/status'],
-  });
-
   const { data: entries = [] } = useQuery<Entry[]>({
     queryKey: ["/api/entries", searchQuery],
     queryFn: async () => {
@@ -55,7 +50,7 @@ export default function Dashboard() {
       <Navigation />
       <main className="flex-1 pl-[240px]">
         <div className="container max-w-[1600px] mx-auto py-8 px-6 space-y-8">
-          {/* Status Bar */}
+          {/* Header */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-card border">
             <div className="flex items-center gap-4">
               <div>
@@ -65,67 +60,13 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* Trial/Plan Status */}
-              <div className="flex flex-col items-end text-sm">
-                {trialStatus?.currentTier === 'trial' ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-                        Trial Active
-                      </div>
-                    </div>
-                    {trialStatus.trialEndDate && (
-                      <p className="text-sm text-muted-foreground">
-                        Expires {new Date(trialStatus.trialEndDate).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                ) : trialStatus?.currentTier === 'free' ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">
-                        Free Plan
-                      </div>
-                      <span className="font-medium text-yellow-700">
-                        {entries.length}/5 entries
-                      </span>
-                    </div>
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setLocation("/trial")}
-                    >
-                      Start Free Trial
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="px-3 py-1.5 rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
-                    Premium Plan
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation("/trial/analytics")}
-                >
-                  <BarChart2 className="mr-2 h-4 w-4" />
-                  Analytics
+            <div className="flex gap-2">
+              <Link href="/journal">
+                <Button variant="default">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Entry
                 </Button>
-                <Link href="/journal">
-                  <Button
-                    variant="default"
-                    disabled={trialStatus?.currentTier === 'free' && entries.length >= 5}
-                    title={trialStatus?.currentTier === 'free' && entries.length >= 5 ? 
-                      "Upgrade to create more entries" : undefined}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Entry
-                  </Button>
-                </Link>
-              </div>
+              </Link>
             </div>
           </div>
 
