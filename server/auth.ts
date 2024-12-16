@@ -123,12 +123,16 @@ export function setupAuth(app: Express) {
       // Hash the password
       const hashedPassword = await crypto.hash(password);
 
+      // Check if this is the first user (who will be admin)
+      const userCount = await db.select().from(users).execute().then(users => users.length);
+
       // Create the new user
       const [newUser] = await db
         .insert(users)
         .values({
           username,
           password: hashedPassword,
+          isAdmin: userCount === 0, // First user is admin
         })
         .returning();
 

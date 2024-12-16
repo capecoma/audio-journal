@@ -22,8 +22,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: "Authentication required" });
   }
   
-  // For now, user ID 1 is admin. In production, you'd check an isAdmin field
-  if (req.user?.id !== 1) {
+  if (!req.user?.isAdmin) {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
