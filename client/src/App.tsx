@@ -1,19 +1,33 @@
 import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Home } from "lucide-react";
-import Dashboard from "./pages/Dashboard";
-import Journal from "./pages/Journal";
-import Analytics from "./pages/Analytics";
+import { AlertCircle, Home, Loader2 } from "lucide-react";
+import { Suspense, lazy } from "react";
+
+// Lazy load route components
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Journal = lazy(() => import("./pages/Journal"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+
+// Loading fallback component
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
 function App() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/journal" component={Journal} />
-      <Route path="/analytics" component={Analytics} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/journal" component={Journal} />
+        <Route path="/analytics" component={Analytics} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
