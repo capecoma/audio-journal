@@ -8,14 +8,14 @@ interface FeatureUsage {
   count: number;
 }
 
-interface MonthlyStats {
-  month: string;
+interface DailyStats {
+  date: string;
   count: number;
 }
 
 interface Analytics {
   featureUsage: FeatureUsage[];
-  monthlyStats: MonthlyStats[];
+  dailyStats: DailyStats[];
 }
 
 export default function Analytics() {
@@ -28,7 +28,7 @@ export default function Analytics() {
   }
 
   const featureData = analyticsData?.featureUsage ?? [];
-  const monthlyData = analyticsData?.monthlyStats ?? [];
+  const dailyData = analyticsData?.dailyStats ?? [];
 
   return (
     <div className="flex min-h-screen">
@@ -58,17 +58,17 @@ export default function Analytics() {
               </CardContent>
             </Card>
 
-            {/* Monthly Usage Trend */}
+            {/* Daily Usage Trend */}
             <Card>
               <CardHeader>
-                <CardTitle>Monthly Usage Trend</CardTitle>
+                <CardTitle>Daily Usage Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={monthlyData}>
+                    <LineChart data={dailyData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
+                      <XAxis dataKey="date" />
                       <YAxis />
                       <Tooltip />
                       <Line 

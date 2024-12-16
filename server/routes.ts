@@ -193,11 +193,14 @@ export function registerRoutes(app: Express): Server {
         { feature: "Daily Summaries", count: summaryCount },
       ];
 
-      // Calculate monthly usage trends
-      const monthlyStats = userEntries.reduce((acc: Record<string, number>, entry) => {
+      // Calculate daily usage trends
+      const dailyStats = userEntries.reduce((acc: Record<string, number>, entry) => {
         if (entry.createdAt) {
-          const month = new Date(entry.createdAt).toLocaleString('default', { month: 'long' });
-          acc[month] = (acc[month] || 0) + 1;
+          const date = new Date(entry.createdAt).toLocaleDateString('en-US', { 
+            month: 'short',
+            day: 'numeric'
+          });
+          acc[date] = (acc[date] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
@@ -205,8 +208,8 @@ export function registerRoutes(app: Express): Server {
       // Format response
       const response = {
         featureUsage,
-        monthlyStats: Object.entries(monthlyStats).map(([month, count]) => ({
-          month,
+        dailyStats: Object.entries(dailyStats).map(([date, count]) => ({
+          date,
           count
         }))
       };
