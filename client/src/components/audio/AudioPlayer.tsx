@@ -1,79 +1,122 @@
-import { FileText, Volume2, VolumeX } from 'lucide-react';
-import { Slider } from "@/components/ui/slider";
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { PlayCircle, PauseCircle, Volume2, VolumeX, FileText } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Slider } from '@/components/ui/slider';
 
 interface AudioPlayerProps {
   audioUrl: string;
-  progress: number;
-  duration?: number;
+  duration: number;
   onTranscriptClick: () => void;
   transcript?: string;
 }
 
-export default function AudioPlayer({ audioUrl, progress, duration = 0, onTranscriptClick, transcript }: AudioPlayerProps) {
-  const [volume, setVolume] = useState(100);
+export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, transcript }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(100);
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume / 100;
-    }
-  }, [volume]);
+    const audio = audioRef.current;
+    if (!audio) return;
 
-  const formatDuration = (timeInSeconds: number) => {
-    const roundedSeconds = Math.round(timeInSeconds);
-    if (roundedSeconds < 60) {
-      return `${roundedSeconds}s`;
+    const updateTime = () => setCurrentTime(audio.currentTime);
+    const handleEnded = () => setIsPlaying(false);
+
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    audio.volume = isMuted ? 0 : volume / 100;
+  }, [volume, isMuted]);
+
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
     }
-    const minutes = Math.floor(roundedSeconds / 60);
-    const seconds = roundedSeconds % 60;
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleVolumeChange = (value: number[]) => {
-    setVolume(value[0]);
-  };
-
   return (
-    <div className="flex items-center gap-4 w-full">
-      <div className="flex items-center flex-1 space-x-4">
-        <div className="flex-1">
-          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="absolute left-0 top-0 h-full bg-red-500 transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+    <div className="flex items-center gap-4 w-full p-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={togglePlayPause}
+        className="h-8 w-8"
+      >
+        {isPlaying ? (
+          <PauseCircle className="h-5 w-5" />
+        ) : (
+          <PlayCircle className="h-5 w-5" />
+        )}
+      </Button>
+
+      <div className="flex-1 space-y-1">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
         </div>
+        <Progress value={(currentTime / duration) * 100} className="h-1" />
+      </div>
 
-        <span className="text-xs text-muted-foreground min-w-[3ch]">
-          {formatDuration(duration)}
-        </span>
-
-        <div className="flex items-center gap-2">
-          {volume === 0 ? (
-            <VolumeX className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleMute}
+          className="h-8 w-8"
+        >
+          {isMuted ? (
+            <VolumeX className="h-4 w-4" />
           ) : (
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <Volume2 className="h-4 w-4" />
           )}
-          <Slider
-            value={[volume]}
-            onValueChange={handleVolumeChange}
-            max={100}
-            step={1}
-            className="w-24"
-          />
-        </div>
+        </Button>
+        <Slider
+          value={[isMuted ? 0 : volume]}
+          min={0}
+          max={100}
+          step={1}
+          className="w-20"
+          onValueChange={([value]) => setVolume(value)}
+        />
       </div>
       
       {transcript && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onTranscriptClick}
-          className="p-2 hover:bg-secondary rounded-full"
-          aria-label="View transcript"
+          className="h-8 w-8"
         >
-          <FileText className="h-4 w-4 text-muted-foreground" />
-        </button>
+          <FileText className="h-4 w-4" />
+        </Button>
       )}
       
       <audio ref={audioRef} src={audioUrl} className="hidden" />
