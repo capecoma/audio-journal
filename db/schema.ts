@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -11,26 +11,6 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").default(false).notNull()
 });
 
-// Create the schema with proper validation
-export const insertUserSchema = createInsertSchema(users).extend({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-export const selectUserSchema = createSelectSchema(users);
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type SelectUser = User;
-
-export const tags = pgTable("tags", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  userId: integer("user_id").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow()
-}, (t) => ({
-  nameUserIdx: unique().on(t.name, t.userId),
-}));
-
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -40,12 +20,17 @@ export const entries = pgTable("entries", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+export const tags = pgTable("tags", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  userId: integer("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
 export const entryTags = pgTable("entry_tags", {
   entryId: integer("entry_id").references(() => entries.id),
-  tagId: integer("tag_id").references(() => tags.id),
-}, (t) => ({
-  pk: primaryKey(t.entryId, t.tagId),
-}));
+  tagId: integer("tag_id").references(() => tags.id)
+});
 
 export const summaries = pgTable("summaries", {
   id: serial("id").primaryKey(),
@@ -75,20 +60,25 @@ export const entryTagsRelations = relations(entryTags, ({ one }) => ({
   }),
 }));
 
-// Additional type exports
+// Create schemas with proper validation
+export const insertUserSchema = createInsertSchema(users).extend({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const selectUserSchema = createSelectSchema(users);
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type SelectUser = User;
+
 export const insertTagSchema = createInsertSchema(tags);
 export const selectTagSchema = createSelectSchema(tags);
-export type SelectTag = typeof tags.$inferSelect;
-export type Tag = SelectTag;
+export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
-export type Entry = typeof entries.$inferSelect & {
-  entryTags?: {
-    tag: SelectTag;
-  }[];
-};
+export type Entry = typeof entries.$inferSelect;
 export type NewEntry = typeof entries.$inferInsert;
 
 export const insertSummarySchema = createInsertSchema(summaries);

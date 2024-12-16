@@ -135,7 +135,9 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).json({
+          message: "Username already exists"
+        });
       }
 
       // Hash the password

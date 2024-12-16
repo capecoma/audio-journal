@@ -6,9 +6,6 @@ import { setupVite, serveStatic, log } from "./vite";
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set");
 }
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY must be set");
-}
 
 const app = express();
 
