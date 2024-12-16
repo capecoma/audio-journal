@@ -4,16 +4,8 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: async ({ queryKey }) => {
-        // Special handling for trial status endpoint
-        const isTrial = queryKey[0] === '/api/trial/status';
-        
         const res = await fetch(queryKey[0] as string, {
-          credentials: "include",
-          // Add cache-busting for trial status
-          headers: isTrial ? {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          } : undefined
+          credentials: "include"
         });
 
         if (!res.ok) {

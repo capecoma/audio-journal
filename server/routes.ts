@@ -9,9 +9,7 @@ import multer from "multer";
 // Simple middleware for user context
 async function addUserContext(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = 1; // TODO: Get from auth
-    // Add basic user context without trial/tier restrictions
-    req.app.locals.userId = userId;
+    req.app.locals.userId = 1; // TODO: Get from auth
     next();
   } catch (error) {
     console.error('Error adding user context:', error);
