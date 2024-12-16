@@ -1,21 +1,20 @@
+
 import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, PauseCircle, Volume2, VolumeX, FileText } from 'lucide-react';
+import { PlayCircle, PauseCircle, Volume2, VolumeX } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 
 interface AudioPlayerProps {
-  audioUrl: string;
-  duration: number;
-  onTranscriptClick: () => void;
-  transcript?: string;
+  url: string;
+  title: string;
 }
 
-export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, transcript }: AudioPlayerProps) {
+export function AudioPlayer({ url, title }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -24,7 +23,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     if (!audio) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => setAudioDuration(audio.duration);
+    const handleDurationChange = () => setDuration(audio.duration);
     const handleEnded = () => setIsPlaying(false);
 
     audio.addEventListener('timeupdate', updateTime);
@@ -82,8 +81,9 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
           )}
         </Button>
         <div className="flex-1 min-w-0">
+          <h3 className="text-base font-medium text-gray-900 truncate">{title}</h3>
           <div className="text-sm text-gray-500">
-            {formatTime(currentTime)} / {formatTime(audioDuration)}
+            {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -108,19 +108,9 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             onValueChange={([value]) => setVolume(value / 100)}
           />
         </div>
-        {transcript && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onTranscriptClick}
-            className="h-8 w-8"
-          >
-            <FileText className="h-4 w-4" />
-          </Button>
-        )}
       </div>
-      <Progress value={(currentTime / audioDuration) * 100} className="h-1" />
-      <audio ref={audioRef} src={audioUrl} className="hidden" />
+      <Progress value={(currentTime / duration) * 100} className="h-1" />
+      <audio ref={audioRef} src={url} className="hidden" />
     </div>
   );
 }
