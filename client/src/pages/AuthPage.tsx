@@ -12,8 +12,8 @@ import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 
 const authSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
+  password: z.string().min(1, "Password is required").min(6, "Password must be at least 6 characters"),
 });
 
 type AuthForm = z.infer<typeof authSchema>;
@@ -34,6 +34,18 @@ export default function AuthPage() {
   const onSubmit = async (formData: AuthForm, action: "login" | "register") => {
     try {
       setIsSubmitting(true);
+      if (form.formState.errors.username || form.formState.errors.password) {
+        const errorMessages = Object.values(form.formState.errors)
+          .map(error => error.message)
+          .join(", ");
+        toast({
+          variant: "destructive",
+          title: "Validation Error",
+          description: errorMessages
+        });
+        return;
+      }
+
       const result = await (action === "login" ? login(formData) : register(formData));
       
       if (!result.ok) {
