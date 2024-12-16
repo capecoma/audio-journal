@@ -161,6 +161,50 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Usage analytics endpoint
+  app.get("/api/analytics", async (_req, res) => {
+    try {
+      const entries = await db.query.entries.findMany({
+        orderBy: [desc(entries.createdAt)],
+        with: {
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      // Calculate usage statistics
+      const featureUsage = [
+        { feature: "Total Recordings", count: entries.length },
+        { feature: "Transcribed Entries", count: entries.filter(entry => entry.transcript).length },
+        { feature: "Tagged Entries", count: entries.filter(entry => entry.entryTags?.length > 0).length },
+        { feature: "Daily Summaries", count: await db.query.summaries.findMany().then(s => s.length) },
+      ];
+
+      // Calculate monthly usage trends
+      const monthlyStats: Record<string, number> = entries.reduce((acc: Record<string, number>, entry) => {
+        if (entry.createdAt) {
+          const month = new Date(entry.createdAt).toLocaleString('default', { month: 'long' });
+          acc[month] = (acc[month] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      res.json({
+        featureUsage,
+        monthlyStats: Object.entries(monthlyStats).map(([month, count]) => ({
+          month,
+          count
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   // Tag management endpoints
   app.get("/api/tags", async (_req, res) => {
     try {

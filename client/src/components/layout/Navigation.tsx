@@ -10,6 +10,7 @@ export default function Navigation() {
   const navItems = [
     { href: "/", label: "Dashboard", icon: BarChart2 },
     { href: "/journal", label: "Record", icon: MicIcon },
+    { href: "/analytics", label: "Analytics", icon: BarChart2 },
   ];
 
   return (

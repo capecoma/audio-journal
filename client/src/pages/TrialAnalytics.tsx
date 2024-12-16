@@ -1,95 +1,90 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import TrialNav from "@/components/trial/TrialNav";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import Navigation from "@/components/layout/Navigation";
 
 interface FeatureUsage {
   feature: string;
   count: number;
 }
 
-interface TrialAnalytics {
-  featureUsage: FeatureUsage[];
-  activeTrials: number;
-  completedTrials: number;
-  conversionRate: number;
+interface MonthlyStats {
+  month: string;
+  count: number;
 }
 
-export function TrialAnalytics() {
-  
-  
-  const { data: analyticsData, isLoading } = useQuery<TrialAnalytics>({
-    queryKey: ['/api/trial/analytics'],
+interface Analytics {
+  featureUsage: FeatureUsage[];
+  monthlyStats: MonthlyStats[];
+}
+
+export default function Analytics() {
+  const { data: analyticsData, isLoading } = useQuery<Analytics>({
+    queryKey: ['/api/analytics'],
   });
 
   if (isLoading) {
     return <div className="p-8">Loading analytics...</div>;
   }
 
-  const chartData = analyticsData?.featureUsage ?? [];
-  const stats = {
-    activeTrials: analyticsData?.activeTrials ?? 0,
-    completedTrials: analyticsData?.completedTrials ?? 0,
-    conversionRate: analyticsData?.conversionRate ?? 0,
-  };
+  const featureData = analyticsData?.featureUsage ?? [];
+  const monthlyData = analyticsData?.monthlyStats ?? [];
 
   return (
-    <div className="container mx-auto p-8">
-      <TrialNav />
+    <div className="flex min-h-screen">
+      <Navigation />
+      <main className="flex-1 pl-[240px]">
+        <div className="container max-w-[1600px] mx-auto py-8 px-6 space-y-8">
+          <h1 className="text-3xl font-bold">Usage Analytics</h1>
+          
+          <div className="grid gap-8">
+            {/* Feature Usage Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Feature Usage</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={featureData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="feature" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="hsl(var(--primary))" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
-      <div className="grid gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Trial Usage Analytics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="feature" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Trials</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stats.activeTrials}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Trial Completions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stats.completedTrials}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Conversion Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">
-                {`${(stats.conversionRate * 100).toFixed(1)}%`}
-              </p>
-            </CardContent>
-          </Card>
+            {/* Monthly Usage Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Usage Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line 
+                        type="monotone" 
+                        dataKey="count" 
+                        stroke="hsl(var(--primary))" 
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
