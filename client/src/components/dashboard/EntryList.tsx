@@ -131,7 +131,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                         </div>
                         <AudioPlayer 
                           audioUrl={entry.audioUrl} 
-                          duration={entry.duration ?? 0}
+                          duration={typeof entry.duration === 'number' ? entry.duration : 0}
                           onTranscriptClick={() => setSelectedTranscript({
                             text: entry.transcript!,
                             date: format(new Date(entry.createdAt!), "PPpp")

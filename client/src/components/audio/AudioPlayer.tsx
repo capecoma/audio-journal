@@ -28,34 +28,30 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     if (!audio) return;
 
     const updateTime = () => {
-      const time = audio.currentTime;
-      if (time >= 0 && !isNaN(time)) {
-        setCurrentTime(time);
+      if (!isNaN(audio.currentTime)) {
+        setCurrentTime(audio.currentTime);
       }
     };
 
     const handleLoadedMetadata = () => {
-      const duration = audio.duration;
-      if (duration && !isNaN(duration)) {
-        setAudioDuration(duration);
+      if (!isNaN(audio.duration)) {
+        setAudioDuration(audio.duration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      const finalTime = audio.duration;
-      if (finalTime && !isNaN(finalTime)) {
-        setCurrentTime(finalTime);
+      if (!isNaN(audio.duration)) {
+        setCurrentTime(audio.duration);
       }
     };
 
-    // Reset current time
+    // Reset states
     setCurrentTime(0);
+    setIsPlaying(false);
     
-    // Try to get duration immediately if already loaded
-    if (audio.duration && !isNaN(audio.duration)) {
-      setAudioDuration(audio.duration);
-    }
+    // Force load audio metadata
+    audio.load();
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -96,11 +92,11 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   };
 
   const formatTime = (time: number) => {
-    if (!time || isNaN(time)) {
+    if (typeof time !== 'number' || isNaN(time) || !isFinite(time)) {
       return '0:00';
     }
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
+    const minutes = Math.floor(Math.max(0, time) / 60);
+    const seconds = Math.floor(Math.max(0, time) % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
