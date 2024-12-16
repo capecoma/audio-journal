@@ -6,16 +6,27 @@ import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 import { validateFileUpload, encryptData, decryptData } from './middleware/security';
+import { setupAuth } from './auth';
 
-// Simple middleware for user context
-async function addUserContext(req: Request, res: Response, next: NextFunction) {
-  try {
-    req.app.locals.userId = 1; // TODO: Get from auth
-    next();
-  } catch (error) {
-    console.error('Error adding user context:', error);
-    res.status(500).json({ error: "Internal server error" });
+// Authentication middleware
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
   }
+  next();
+}
+
+// Admin check middleware
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  // For now, user ID 1 is admin. In production, you'd check an isAdmin field
+  if (req.user?.id !== 1) {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
 }
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,8 +35,20 @@ export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
   
-  // Apply user context middleware to all API routes
-  app.use('/api', addUserContext);
+  // Setup authentication
+  setupAuth(app);
+  
+  // Apply authentication to all API routes except login/register
+  app.use('/api', (req, res, next) => {
+    if (req.path.match(/^\/api\/(login|register|user)$/)) {
+      return next();
+    }
+    requireAuth(req, res, next);
+  });
+
+  // Setup Authentication
+  setupAuth(app);
+
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -167,10 +190,68 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Usage analytics endpoint
-  app.get("/api/analytics", async (_req, res) => {
+  // Admin analytics dashboard endpoint
+  app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
     try {
-      // Get user ID from context
-      const userId = _req.app.locals.userId;
+      // Get all users and their usage statistics
+      const allUsers = await db.query.users.findMany();
+      
+      const usersWithStats = await Promise.all(allUsers.map(async (user) => {
+        // Get user's entries
+        const userEntries = await db.query.entries.findMany({
+          where: eq(entries.userId, user.id),
+          with: {
+            entryTags: {
+              with: {
+                tag: true
+              }
+            }
+          }
+        });
+
+        // Get user's summaries
+        const userSummaries = await db.query.summaries.findMany({
+          where: eq(summaries.userId, user.id)
+        });
+
+        // Calculate user statistics
+        const totalDuration = userEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+        const avgEntryLength = userEntries.length ? totalDuration / userEntries.length : 0;
+        const uniqueTags = new Set(userEntries.flatMap(entry => entry.entryTags?.map(et => et.tag?.name) || [])).size;
+
+        return {
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+          stats: {
+            totalEntries: userEntries.length,
+            totalDuration: totalDuration,
+            averageEntryLength: avgEntryLength,
+            totalSummaries: userSummaries.length,
+            uniqueTags: uniqueTags,
+            lastActive: userEntries.length ? userEntries[0].createdAt : user.createdAt,
+          }
+        };
+      }));
+
+      // Calculate system-wide statistics
+      const systemStats = {
+        totalUsers: allUsers.length,
+        totalEntries: usersWithStats.reduce((sum, user) => sum + user.stats.totalEntries, 0),
+        totalDuration: usersWithStats.reduce((sum, user) => sum + user.stats.totalDuration, 0),
+        averageEntriesPerUser: usersWithStats.reduce((sum, user) => sum + user.stats.totalEntries, 0) / allUsers.length,
+        activeUsersLast7Days: usersWithStats.filter(user => {
+          const lastActive = new Date(user.stats.lastActive);
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return lastActive >= sevenDaysAgo;
+        }).length
+      };
+
+      res.json({
+        users: usersWithStats,
+        systemStats
+      });
       
       // Fetch entries for the user
       const userEntries = await db.query.entries.findMany({
@@ -223,6 +304,32 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching analytics:', error);
       res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // Admin-specific analytics (requires authentication check)
+  app.get("/api/admin/analytics", async (req, res) => {
+    try {
+      // Assuming authentication middleware sets req.user.isAdmin
+      if (!req.user?.isAdmin) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      // Fetch all user entries and summaries
+      const allEntries = await db.query.entries.findMany({});
+      const allSummaries = await db.query.summaries.findMany({});
+
+      //Perform Admin Analytics Calculations here...
+
+      const adminAnalytics = {
+          totalUsers: await db.query.users.count(),
+          totalEntries: allEntries.length,
+          totalSummaries: allSummaries.length
+      };
+
+      res.json(adminAnalytics);
+    } catch (error) {
+      console.error('Error fetching admin analytics:', error);
+      res.status(500).json({ error: "Failed to fetch admin analytics" });
     }
   });
 
