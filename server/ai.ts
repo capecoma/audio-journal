@@ -3,8 +3,23 @@ import OpenAI from "openai";
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+import { createHash } from 'crypto';
+import { cacheMiddleware } from './cache';
+
 export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
+    // Generate a hash of the audio buffer for cache key
+    const audioHash = createHash('sha256').update(audioBuffer).digest('hex');
+    const cacheKey = cacheMiddleware.getTranscriptionKey(audioHash);
+
+    // Check cache first
+    const cachedTranscription = cacheMiddleware.get<string>(cacheKey);
+    if (cachedTranscription) {
+      console.log('Transcription cache hit');
+      return cachedTranscription;
+    }
+
+    console.log('Transcription cache miss, calling OpenAI API');
     // Create a blob from the buffer
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: 'audio/webm' });
@@ -27,6 +42,10 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     }
 
     const transcription = await response.text();
+    
+    // Cache the result
+    cacheMiddleware.set(cacheKey, transcription);
+    
     return transcription;
   } catch (error: any) {
     console.error("Transcription error:", error);
@@ -39,6 +58,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
 
 export async function generateTags(transcript: string): Promise<string[]> {
   try {
+    const cacheKey = cacheMiddleware.getTagsKey(transcript);
+    
+    // Check cache first
+    const cachedTags = cacheMiddleware.get<string[]>(cacheKey);
+    if (cachedTags) {
+      console.log('Tags cache hit');
+      return cachedTags;
+    }
+
+    console.log('Tags cache miss, calling OpenAI API');
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -54,8 +83,13 @@ export async function generateTags(transcript: string): Promise<string[]> {
       response_format: { type: "json_object" },
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
-    return result.tags || [];
+    const result = JSON.parse(response.choices[0].message.content || '{"tags":[]}');
+    const tags = result.tags || [];
+    
+    // Cache the result
+    cacheMiddleware.set(cacheKey, tags);
+    
+    return tags;
   } catch (error) {
     console.error("Tag generation error:", error);
     throw new Error("Failed to generate tags");
