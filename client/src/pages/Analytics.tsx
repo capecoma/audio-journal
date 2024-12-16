@@ -16,11 +16,9 @@ export default function Analytics() {
 
   return (
     <div className="container mx-auto p-8">
-      <Link href="/">
-        <a className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </a>
+      <Link href="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Dashboard
       </Link>
 
       <div className="grid gap-8">
