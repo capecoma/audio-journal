@@ -100,14 +100,25 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      if (!req.body.username || !req.body.password) {
+      console.log('Register request body:', req.body); // Debug log
+
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({
+          message: "Invalid request body"
+        });
+      }
+
+      const { username: rawUsername, password: rawPassword } = req.body;
+      
+      if (!rawUsername || !rawPassword) {
         return res.status(400).json({
           message: "Username and password are required"
         });
       }
 
-      const result = insertUserSchema.safeParse(req.body);
+      const result = insertUserSchema.safeParse({ username: rawUsername, password: rawPassword });
       if (!result.success) {
+        console.log('Validation error:', result.error.issues); // Debug log
         return res.status(400).json({
           message: "Validation failed",
           errors: result.error.issues.map(i => i.message)

@@ -46,10 +46,20 @@ export default function AuthPage() {
         return;
       }
 
+      console.log('Submitting form data:', formData); // Debug log
+      
       const result = await (action === "login" ? login(formData) : register(formData));
       
       if (!result.ok) {
-        throw new Error(result.message);
+        const errorMessage = result.message;
+        console.log('Auth error:', errorMessage); // Debug log
+        
+        toast({
+          variant: "destructive",
+          title: `${action === "login" ? "Login" : "Registration"} failed`,
+          description: errorMessage
+        });
+        return;
       }
 
       toast({
