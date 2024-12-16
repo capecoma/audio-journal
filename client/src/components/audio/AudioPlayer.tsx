@@ -17,6 +17,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(100);
   const [isMuted, setIsMuted] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(duration);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -24,15 +25,23 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const handleEnded = () => setIsPlaying(false);
+    const handleLoadedMetadata = () => {
+      setAudioDuration(audio.duration);
+    };
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    // Set initial audio time to 0
+    audio.currentTime = 0;
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, []);
+  }, [audioUrl]); // Re-run effect when audioUrl changes
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -80,9 +89,12 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
       <div className="flex-1 space-y-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
+          <span>{formatTime(audioDuration)}</span>
         </div>
-        <Progress value={(currentTime / duration) * 100} className="h-1" />
+        <Progress 
+          value={(currentTime / audioDuration) * 100} 
+          className="h-1" 
+        />
       </div>
 
       <div className="flex items-center gap-2">
