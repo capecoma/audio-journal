@@ -22,6 +22,12 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Initialize with prop duration
+    if (duration > 0) {
+      console.log('Setting initial duration from prop:', duration);
+      setAudioDuration(duration);
+    }
+
     const updateTime = () => {
       if (!isNaN(audio.currentTime)) {
         setCurrentTime(audio.currentTime);
@@ -29,17 +35,25 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     };
 
     const handleLoadedMetadata = () => {
-      // Get the duration from the audio element
-      const audioElementDuration = audio.duration;
-      
-      // Only update if we have a valid duration
-      if (!isNaN(audioElementDuration) && audioElementDuration > 0) {
-        setAudioDuration(audioElementDuration);
+      console.log('Metadata loaded, audio duration:', audio.duration);
+      // Only update from audio element if we don't have a valid prop duration
+      if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
+        console.log('Updating duration from audio element:', audio.duration);
+        setAudioDuration(audio.duration);
+      }
+    };
+
+    const handleDurationChange = () => {
+      console.log('Duration changed, new duration:', audio.duration);
+      if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
+        console.log('Updating duration on change:', audio.duration);
+        setAudioDuration(audio.duration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
+      // Use the current audioDuration state instead of potentially stale prop
       setCurrentTime(audioDuration);
     };
 
@@ -47,26 +61,24 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     setCurrentTime(0);
     setIsPlaying(false);
 
-    // Set initial duration from props if available
-    if (duration && duration > 0) {
-      setAudioDuration(duration);
-    }
-
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('durationchange', handleLoadedMetadata); // Use same handler for both events
+    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
 
-    // Explicitly load the audio to trigger metadata loading
-    audio.load();
+    // Force metadata loading
+    if (audio.readyState === 0) {
+      console.log('Loading audio metadata...');
+      audio.load();
+    }
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('durationchange', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioUrl, duration]);
+  }, [audioUrl, duration, audioDuration]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -168,9 +180,11 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
         ref={audioRef} 
         src={audioUrl}
         preload="metadata"
-        onLoadedMetadata={(e) => {
+        onLoadedData={(e) => {
           const audio = e.currentTarget;
-          if (!isNaN(audio.duration) && audio.duration > 0) {
+          console.log('Audio loaded, checking duration:', audio.duration);
+          if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
+            console.log('Setting duration from loaded audio:', audio.duration);
             setAudioDuration(audio.duration);
           }
         }}

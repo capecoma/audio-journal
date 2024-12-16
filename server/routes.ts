@@ -60,7 +60,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const audioBuffer = req.file.buffer;
-      const duration = 0; // We'll get this from the audio file later
+      
+      // Calculate approximate duration based on audio file size and bitrate
+      // Using 32kbps as our fixed bitrate (32000 bits per second)
+      const bitRate = 32000; // bits per second
+      const duration = Math.round((audioBuffer.length * 8) / bitRate);
 
       // For now, we'll store audio as base64 data URL
       const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
