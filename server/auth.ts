@@ -100,44 +100,17 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      // Enhanced debugging
-      console.log('Register endpoint hit');
-      console.log('Request body type:', typeof req.body);
-      console.log('Request body:', JSON.stringify(req.body, null, 2));
-      console.log('Content-Type:', req.get('content-type'));
-
-      // Validate request body structure
-      if (!req.body || typeof req.body !== 'object') {
-        console.log('Invalid body structure:', req.body);
+      // Ensure request body is properly formatted
+      if (!req.is('application/json')) {
         return res.status(400).json({
-          message: "Invalid request body format",
-          debug: { bodyType: typeof req.body }
+          message: "Content-Type must be application/json"
         });
       }
 
-      // Extract and validate raw fields
-      const rawData = {
-        username: req.body.username,
-        password: req.body.password
-      };
-      
-      console.log('Extracted data:', { username: rawData.username, hasPassword: !!rawData.password });
-      
-      if (!rawData.username || !rawData.password) {
-        console.log('Missing required fields');
-        return res.status(400).json({
-          message: "Username and password are required",
-          debug: { 
-            hasUsername: !!rawData.username, 
-            hasPassword: !!rawData.password 
-          }
-        });
-      }
-
-      // Validate using zod schema
-      const result = insertUserSchema.safeParse(rawData);
+      // Parse and validate the request body
+      const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        console.log('Validation error:', result.error.issues); // Debug log
+        console.log('Validation error:', result.error.issues);
         return res.status(400).json({
           message: "Validation failed",
           errors: result.error.issues.map(i => i.message)

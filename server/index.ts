@@ -16,7 +16,11 @@ app.use(express.urlencoded({ extended: true }));
 // Debug middleware for parsed body
 app.use((req, res, next) => {
   if (req.path === '/api/register') {
-    console.log('Parsed request body:', req.body);
+    console.log('Request body:', {
+      type: typeof req.body,
+      content: JSON.stringify(req.body, null, 2),
+      contentType: req.get('content-type')
+    });
   }
   next();
 });
@@ -26,13 +30,6 @@ import { apiLimiter, securityHeaders } from './middleware/security';
 app.use(securityHeaders);
 app.use('/api', apiLimiter);
 
-// Debug middleware for parsed body
-app.use((req, res, next) => {
-  if (req.path === '/api/register') {
-    console.log('Parsed request body:', req.body);
-  }
-  next();
-});
 
 // Request logging middleware
 app.use((req, res, next) => {
