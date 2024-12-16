@@ -9,24 +9,18 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 
-// Debug middleware to log raw request
-app.use((req, res, next) => {
-  if (req.path === '/api/register') {
-    let data = '';
-    req.on('data', chunk => {
-      data += chunk;
-    });
-    req.on('end', () => {
-      console.log('Raw request body:', data);
-      console.log('Content-Type:', req.headers['content-type']);
-    });
-  }
-  next();
-});
-
 // Body parsing middleware must come first
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Debug middleware to log request details
+app.use((req, res, next) => {
+  if (req.path === '/api/register') {
+    console.log('Request headers:', req.headers);
+    console.log('Request body:', req.body);
+  }
+  next();
+});
 
 // Security middlewares
 import { apiLimiter, securityHeaders } from './middleware/security';

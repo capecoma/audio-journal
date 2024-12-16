@@ -100,23 +100,31 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      console.log('Register request body:', req.body); // Debug log
+      // Log the entire request for debugging
+      console.log('Register request body:', req.body);
+      console.log('Content-Type:', req.get('content-type'));
 
+      // Validate request body structure
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({
-          message: "Invalid request body"
+          message: "Invalid request body format"
         });
       }
 
-      const { username: rawUsername, password: rawPassword } = req.body;
+      // Extract and validate raw fields
+      const rawData = {
+        username: req.body.username,
+        password: req.body.password
+      };
       
-      if (!rawUsername || !rawPassword) {
+      if (!rawData.username || !rawData.password) {
         return res.status(400).json({
           message: "Username and password are required"
         });
       }
 
-      const result = insertUserSchema.safeParse({ username: rawUsername, password: rawPassword });
+      // Validate using zod schema
+      const result = insertUserSchema.safeParse(rawData);
       if (!result.success) {
         console.log('Validation error:', result.error.issues); // Debug log
         return res.status(400).json({
