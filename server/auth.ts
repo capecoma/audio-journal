@@ -100,14 +100,18 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      // Log the entire request for debugging
-      console.log('Register request body:', req.body);
+      // Enhanced debugging
+      console.log('Register endpoint hit');
+      console.log('Request body type:', typeof req.body);
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
       console.log('Content-Type:', req.get('content-type'));
 
       // Validate request body structure
       if (!req.body || typeof req.body !== 'object') {
+        console.log('Invalid body structure:', req.body);
         return res.status(400).json({
-          message: "Invalid request body format"
+          message: "Invalid request body format",
+          debug: { bodyType: typeof req.body }
         });
       }
 
@@ -117,9 +121,16 @@ export function setupAuth(app: Express) {
         password: req.body.password
       };
       
+      console.log('Extracted data:', { username: rawData.username, hasPassword: !!rawData.password });
+      
       if (!rawData.username || !rawData.password) {
+        console.log('Missing required fields');
         return res.status(400).json({
-          message: "Username and password are required"
+          message: "Username and password are required",
+          debug: { 
+            hasUsername: !!rawData.username, 
+            hasPassword: !!rawData.password 
+          }
         });
       }
 

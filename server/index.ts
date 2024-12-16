@@ -10,14 +10,21 @@ if (!process.env.DATABASE_URL) {
 const app = express();
 
 // Body parsing middleware must come first
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({
+  verify: (req, res, buf) => {
+    if (req.path === '/api/register') {
+      console.log('Raw body:', buf.toString());
+    }
+  }
+}));
+app.use(express.urlencoded({ extended: true }));
 
 // Debug middleware to log request details
 app.use((req, res, next) => {
   if (req.path === '/api/register') {
     console.log('Request headers:', req.headers);
-    console.log('Request body:', req.body);
+    console.log('Parsed request body:', req.body);
+    console.log('Content type:', req.get('content-type'));
   }
   next();
 });
