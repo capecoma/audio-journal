@@ -5,6 +5,7 @@ import { AlertCircle, Home, Loader2 } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Journal from "./pages/Journal";
 import AdminDashboard from "./pages/AdminDashboard";
+import AuthPage from "./pages/AuthPage";
 import { useUser } from "@/hooks/use-user";
 
 function App() {
@@ -19,15 +20,7 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="pt-6">
-            <p className="text-center">Please log in to continue</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <AuthPage />;
   }
 
   return (

@@ -37,9 +37,6 @@ export function registerRoutes(app: Express): Server {
   
   // Setup authentication
   setupAuth(app);
-  
-  // Setup Authentication first
-  setupAuth(app);
 
   // Apply authentication to all API routes except login/register
   app.use('/api', (req, res, next) => {
