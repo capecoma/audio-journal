@@ -1,15 +1,33 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries, tags, entryTags, users } from "@db/schema";
-import { eq, desc, and, sql, ilike } from "drizzle-orm"; // Added ilike import
+import { entries, summaries, tags, entryTags, users, type SelectUser } from "@db/schema";
+import { eq, desc, and, sql, ilike } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
+import { setupAuth } from "./auth";
 
-// Simple middleware for user context
+declare global {
+  namespace Express {
+    interface User extends SelectUser {}
+  }
+}
+
+// Authentication middleware to ensure user is logged in
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  next();
+}
+
+// User context middleware now uses authenticated user
 async function addUserContext(req: Request, res: Response, next: NextFunction) {
   try {
-    req.app.locals.userId = 1; // TODO: Get from auth
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    req.app.locals.userId = req.user.id;
     next();
   } catch (error) {
     console.error('Error adding user context:', error);
@@ -20,31 +38,14 @@ async function addUserContext(req: Request, res: Response, next: NextFunction) {
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Set up authentication
+  setupAuth(app);
+
   // Clear route handler cache on startup
   app._router = undefined;
-
-  // Initialize development user if it doesn't exist
-  (async () => {
-    try {
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.id, 1)
-      });
-
-      if (!existingUser) {
-        await db.insert(users).values({
-          id: 1, // Fixed ID for development
-          username: "dev_user",
-          password: "dev_password"
-        });
-        console.log("Development user created successfully");
-      }
-    } catch (error) {
-      console.error("Error initializing development user:", error);
-    }
-  })();
   
-  // Apply user context middleware to all API routes
-  app.use('/api', addUserContext);
+  // Protect API routes with authentication
+  app.use('/api', requireAuth, addUserContext);
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
