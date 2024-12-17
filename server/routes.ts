@@ -1,19 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries, tags, entryTags } from "@db/schema";
+import { entries, tags, entryTags } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
-import { transcribeAudio, generateSummary, generateTags } from "./ai";
+import { transcribeAudio, generateTags } from "./ai";
 import multer from "multer";
 import { validateFileUpload, encryptData, decryptData } from './middleware/security';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
-  // Get entries with optional search
+  // Get all entries
   app.get("/api/entries", async (req, res) => {
     try {
-      const { search } = req.query;
       const allEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
@@ -24,14 +23,21 @@ export function registerRoutes(app: Express): Server {
           }
         }
       });
-      res.json(allEntries);
+
+      // Decrypt audio URLs before sending
+      const decryptedEntries = allEntries.map(entry => ({
+        ...entry,
+        audioUrl: decryptData(entry.audioUrl)
+      }));
+
+      res.json(decryptedEntries);
     } catch (error) {
       console.error('Error fetching entries:', error);
       res.status(500).json({ error: "Failed to fetch entries" });
     }
   });
 
-  // Upload new entry
+  // Create new entry
   app.post("/api/entries/upload", upload.single("audio"), validateFileUpload, async (req, res) => {
     try {
       if (!req.file) {
@@ -65,12 +71,11 @@ export function registerRoutes(app: Express): Server {
           const generatedTags = await generateTags(transcript);
           
           for (const tagName of generatedTags) {
-            // First try to find if the tag exists
+            // Find or create tag
             let existingTag = await db.query.tags.findFirst({
               where: (tags, { eq }) => eq(tags.name, tagName)
             });
 
-            // If tag doesn't exist, create it
             if (!existingTag) {
               const [newTag] = await db.insert(tags)
                 .values({ name: tagName })
@@ -88,28 +93,6 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      // Generate summary
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const todaysEntries = await db.query.entries.findMany({
-        orderBy: [desc(entries.createdAt)]
-      });
-
-      const transcripts = todaysEntries.map(e => e.transcript).filter(Boolean);
-      const summaryText = await generateSummary(transcripts as string[]);
-
-      // Update or create daily summary
-      await db.insert(summaries)
-        .values({
-          date: today.toISOString(),
-          highlightText: summaryText,
-        })
-        .onConflictDoUpdate({
-          target: [summaries.date],
-          set: { highlightText: summaryText },
-        });
-
       // Decrypt audioUrl before sending response
       const decryptedEntry = {
         ...entry,
@@ -118,7 +101,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(decryptedEntry);
     } catch (error: any) {
-      console.error(error);
+      console.error('Error processing entry:', error);
       res.status(500).json({ error: error.message || "Failed to process entry" });
     }
   });
