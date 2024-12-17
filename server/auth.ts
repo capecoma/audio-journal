@@ -107,18 +107,14 @@ export function setupAuth(app: Express) {
         });
       }
 
-      // Ensure request body is properly formatted
-      if (!req.is('application/json')) {
-        return res.status(400).json({
-          message: "Content-Type must be application/json"
-        });
-      }
+      console.log('Request body:', req.body); // Debug log
 
       // Parse and validate the request body
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         console.log('Validation error:', result.error.issues);
         return res.status(400).json({
+          ok: false,
           message: result.error.issues.map(i => i.message).join(", ")
         });
       }

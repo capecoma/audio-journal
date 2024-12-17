@@ -55,16 +55,25 @@ export default function AuthPage() {
       };
       console.log('Request payload:', payload); // Debug log
       
-      const result = await (action === "login" ? login(payload) : register(payload));
-      
-      if (!result.ok) {
-        const errorMessage = result.message;
-        console.log('Auth error:', errorMessage); // Debug log
+      try {
+        const result = await (action === "login" ? login(payload) : register(payload));
         
+        if (!result.ok) {
+          const errorMessage = result.message;
+          console.log('Auth error:', errorMessage); // Debug log
+          
+          toast({
+            variant: "destructive",
+            title: `${action === "login" ? "Login" : "Registration"} failed`,
+            description: errorMessage
+          });
+          return;
+        }
+      } catch (error: any) {
         toast({
           variant: "destructive",
           title: `${action === "login" ? "Login" : "Registration"} failed`,
-          description: errorMessage
+          description: error.message || "An unexpected error occurred"
         });
         return;
       }
