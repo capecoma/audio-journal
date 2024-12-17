@@ -34,49 +34,23 @@ export default function AuthPage() {
   const onSubmit = async (formData: AuthForm, action: "login" | "register") => {
     try {
       setIsSubmitting(true);
-      if (form.formState.errors.username || form.formState.errors.password) {
-        const errorMessages = Object.values(form.formState.errors)
-          .map(error => error.message)
-          .join(", ");
+      
+      // Clear previous errors
+      form.clearErrors();
+
+      const result = await (action === "login" ? login(formData) : register(formData));
+      
+      if (!result.ok) {
         toast({
           variant: "destructive",
-          title: "Validation Error",
-          description: errorMessages
+          title: `${action === "login" ? "Login" : "Registration"} failed`,
+          description: result.message
         });
         return;
       }
 
-      console.log('Submitting form data:', formData); // Debug log
-      
-      // Ensure proper structure of form data
-      const payload = {
-        username: formData.username.trim(),
-        password: formData.password
-      };
-      console.log('Request payload:', payload); // Debug log
-      
-      try {
-        const result = await (action === "login" ? login(payload) : register(payload));
-        
-        if (!result.ok) {
-          const errorMessage = result.message;
-          console.log('Auth error:', errorMessage); // Debug log
-          
-          toast({
-            variant: "destructive",
-            title: `${action === "login" ? "Login" : "Registration"} failed`,
-            description: errorMessage
-          });
-          return;
-        }
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: `${action === "login" ? "Login" : "Registration"} failed`,
-          description: error.message || "An unexpected error occurred"
-        });
-        return;
-      }
+      // Clear form after successful submission
+      form.reset();
 
       toast({
         title: `${action === "login" ? "Login" : "Registration"} successful`,
