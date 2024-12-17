@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
 interface AudioWaveformProps {
@@ -10,14 +10,12 @@ interface AudioWaveformProps {
 }
 
 const emotionColors = {
-  neutral: '#64748b', // slate
-  happy: '#22c55e',   // green
-  sad: '#3b82f6',     // blue
-  excited: '#ef4444', // red
-  calm: '#8b5cf6',    // purple
+  neutral: '#64748b',
+  happy: '#22c55e',
+  sad: '#3b82f6',
+  excited: '#ef4444',
+  calm: '#8b5cf6',
 };
-
-const LOAD_TIMEOUT = 10000; // 10 seconds timeout for loading
 
 export default function AudioWaveform({
   audioUrl,
@@ -26,113 +24,82 @@ export default function AudioWaveform({
   onPlay,
   onPause,
 }: AudioWaveformProps) {
-  const waveformRef = useRef<HTMLDivElement>(null);
-  const wavesurfer = useRef<WaveSurfer | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const destroyWaveSurfer = useCallback(() => {
-    if (wavesurfer.current) {
-      try {
-        wavesurfer.current.pause();
-        wavesurfer.current.destroy();
-      } catch (error) {
-        console.error('Error cleaning up WaveSurfer:', error);
-      } finally {
-        wavesurfer.current = null;
-        setIsPlaying(false);
-      }
-    }
-  }, []);
-
   useEffect(() => {
-    if (!waveformRef.current) return;
+    if (!containerRef.current) return;
 
-    setIsLoading(true);
-    setError(null);
+    let wavesurfer: WaveSurfer | null = null;
 
-    // Cleanup previous instance
-    destroyWaveSurfer();
+    const initializeWaveform = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-    // Create new instance
-    wavesurfer.current = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor: emotionColors[emotion],
-      progressColor: emotionColors[emotion] + '88',
-      cursorColor: emotionColors[emotion],
-      barWidth: 2,
-      barGap: 1,
-      barRadius: 3,
-      cursorWidth: 1,
-      height: 60,
-      normalize: true,
-      mediaControls: true,
-      interact: true,
-    });
+        wavesurfer = WaveSurfer.create({
+          container: containerRef.current!,
+          height: 60,
+          waveColor: emotionColors[emotion],
+          progressColor: emotionColors[emotion] + '88',
+          cursorColor: emotionColors[emotion],
+          cursorWidth: 1,
+          barWidth: 2,
+          barGap: 1,
+          barRadius: 3,
+          normalize: true,
+        });
 
-    // Set up event listeners
-    wavesurfer.current.on('ready', () => {
-      setIsLoading(false);
-      setError(null);
-      onReady?.();
-    });
+        wavesurfer.on('ready', () => {
+          setIsLoading(false);
+          onReady?.();
+        });
 
-    wavesurfer.current.on('play', () => {
-      setIsPlaying(true);
-      onPlay?.();
-    });
+        wavesurfer.on('play', () => {
+          onPlay?.();
+        });
 
-    wavesurfer.current.on('pause', () => {
-      setIsPlaying(false);
-      onPause?.();
-    });
+        wavesurfer.on('pause', () => {
+          onPause?.();
+        });
 
-    wavesurfer.current.on('error', (error) => {
-      console.error('WaveSurfer error:', error);
-      setError('Error loading audio');
-      setIsLoading(false);
-    });
+        wavesurfer.on('error', (err) => {
+          console.error('WaveSurfer error:', err);
+          setError('Error loading audio');
+          setIsLoading(false);
+        });
 
-    // Load the audio file
-    try {
-      wavesurfer.current.load(audioUrl);
-    } catch (error) {
-      console.error('Error loading audio:', error);
-      setError('Error loading audio');
-      setIsLoading(false);
-    }
+        await wavesurfer.load(audioUrl);
+      } catch (err) {
+        console.error('Error initializing WaveSurfer:', err);
+        setError('Error initializing audio player');
+        setIsLoading(false);
+      }
+    };
 
-    // Cleanup on unmount
+    initializeWaveform();
+
     return () => {
-      if (wavesurfer.current) {
-        wavesurfer.current.destroy();
+      if (wavesurfer) {
+        wavesurfer.destroy();
       }
     };
   }, [audioUrl, emotion]);
 
-  // Update waveform color when emotion changes
-  useEffect(() => {
-    if (!wavesurfer.current) return;
-    
-    wavesurfer.current.setOptions({
-      waveColor: emotionColors[emotion],
-      progressColor: emotionColors[emotion] + '88',
-      cursorColor: emotionColors[emotion],
-    });
-  }, [emotion]);
-
-  const togglePlayPause = () => {
-    if (!wavesurfer.current || isLoading || error) return;
-    wavesurfer.current.playPause();
+  const handleClick = () => {
+    const wavesurfer = containerRef.current?.querySelector('wave')?.wavesurfer;
+    if (wavesurfer && !isLoading && !error) {
+      wavesurfer.playPause();
+    }
   };
 
   return (
     <div 
       className={`rounded-lg bg-card p-4 border transition-colors ${!error && 'cursor-pointer hover:bg-muted/30'}`}
-      onClick={togglePlayPause}
+      onClick={handleClick}
     >
-      <div className="min-h-[60px]" ref={waveformRef}>
+      <div className="min-h-[60px]" ref={containerRef}>
         {isLoading && (
           <div className="flex items-center justify-center h-[60px]">
             <div className="animate-pulse text-sm text-muted-foreground">
