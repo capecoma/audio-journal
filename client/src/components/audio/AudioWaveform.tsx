@@ -49,6 +49,8 @@ export default function AudioWaveform({
   useEffect(() => {
     if (!waveformRef.current) return;
 
+    let isComponentMounted = true;
+
     const initWaveSurfer = async () => {
       try {
         setIsLoading(true);
@@ -57,10 +59,12 @@ export default function AudioWaveform({
         // Cleanup previous instance if it exists
         destroyWaveSurfer();
 
+        if (!isComponentMounted) return;
+
         // Create new instance with error handling
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         
-        wavesurfer.current = WaveSurfer.create({
+        const wsInstance = WaveSurfer.create({
           container: waveformRef.current!,
           waveColor: emotionColors[emotion],
           progressColor: emotionColors[emotion] + '88',
@@ -77,28 +81,45 @@ export default function AudioWaveform({
           interact: false,
         });
 
+        // Only set wavesurfer.current if the component is still mounted
+        if (!isComponentMounted) {
+          wsInstance.destroy();
+          return;
+        }
+
+        wavesurfer.current = wsInstance;
+
         // Set up event listeners
         wavesurfer.current.on('ready', () => {
+          if (!isComponentMounted) return;
           setIsLoading(false);
           setError(null);
           onReady?.();
         });
 
         wavesurfer.current.on('play', () => {
+          if (!isComponentMounted) return;
           setIsPlaying(true);
           onPlay?.();
         });
 
         wavesurfer.current.on('pause', () => {
+          if (!isComponentMounted) return;
           setIsPlaying(false);
           onPause?.();
         });
 
         wavesurfer.current.on('error', (error) => {
+          if (!isComponentMounted) return;
           console.error('WaveSurfer error:', error);
           setError('Error loading audio');
           setIsLoading(false);
         });
+
+        if (!isComponentMounted) {
+          wsInstance.destroy();
+          return;
+        }
 
         // Load audio with timeout
         const controller = new AbortController();
@@ -108,19 +129,40 @@ export default function AudioWaveform({
           const response = await fetch(audioUrl, { signal: controller.signal });
           if (!response.ok) throw new Error('Failed to fetch audio');
           
+          if (!isComponentMounted) {
+            clearTimeout(timeoutId);
+            wsInstance.destroy();
+            return;
+          }
+
           const arrayBuffer = await response.arrayBuffer();
+          
+          if (!isComponentMounted) {
+            clearTimeout(timeoutId);
+            wsInstance.destroy();
+            return;
+          }
+
           const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
           
+          if (!isComponentMounted || !wavesurfer.current) {
+            clearTimeout(timeoutId);
+            wsInstance.destroy();
+            return;
+          }
+
           await wavesurfer.current.loadDecodedBuffer(audioBuffer);
           clearTimeout(timeoutId);
         } catch (loadError: any) {
           clearTimeout(timeoutId);
+          if (!isComponentMounted) return;
           console.error('Error loading audio:', loadError);
           setError(loadError.message || 'Error loading audio');
           setIsLoading(false);
           destroyWaveSurfer();
         }
       } catch (error: any) {
+        if (!isComponentMounted) return;
         console.error('Error initializing WaveSurfer:', error);
         setError(error.message || 'Error initializing audio player');
         setIsLoading(false);
@@ -129,8 +171,11 @@ export default function AudioWaveform({
     };
 
     initWaveSurfer();
-    return destroyWaveSurfer;
-  }, [audioUrl, destroyWaveSurfer]);
+    return () => {
+      isComponentMounted = false;
+      destroyWaveSurfer();
+    };
+  }, [audioUrl, destroyWaveSurfer, emotion]);
 
   // Update waveform color when emotion changes
   useEffect(() => {
