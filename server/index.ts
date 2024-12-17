@@ -10,13 +10,20 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 
-// Configure CORS for Replit's environment
+// Configure CORS and security headers for Replit's environment
 app.use(cors({
-  origin: true, // Allow any origin
-  credentials: true, // Allow credentials
+  origin: true,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Add security headers to allow iframe embedding
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://*.replit.dev https://*.replit.com");
+  next();
+});
 
 // Body parsing middleware - must be before auth setup
 app.use(express.json());
