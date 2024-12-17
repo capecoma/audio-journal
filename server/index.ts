@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { DatabaseBackup } from "./backup";
 
 // Verify environment variables
 if (!process.env.DATABASE_URL) {
@@ -10,13 +9,6 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY must be set");
 }
-
-// Initialize database backup system
-const backupConfig = {
-  maxBackups: 7, // Keep a week's worth of backups
-  backupDir: './backups'
-};
-const dbBackup = new DatabaseBackup(backupConfig);
 
 const app = express();
 
@@ -78,41 +70,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on http://0.0.0.0:${PORT}`);
-      
-      // Schedule daily backups at midnight
-      const scheduleBackup = () => {
-        const now = new Date();
-        const night = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() + 1, // tomorrow
-          0, // midnight
-          0, // 0 minutes
-          0  // 0 seconds
-        );
-        const timeToMidnight = night.getTime() - now.getTime();
-        
-        // Schedule next backup
-        setTimeout(async () => {
-          try {
-            log('Starting scheduled database backup...');
-            const backupPath = await dbBackup.createBackup();
-            log(`Backup created successfully at ${backupPath}`);
-          } catch (error) {
-            console.error('Scheduled backup failed:', error);
-          }
-          // Schedule next backup after completion
-          scheduleBackup();
-        }, timeToMidnight);
-      };
-      
-      // Start the backup schedule
-      scheduleBackup();
-      
-      // Perform initial backup
-      dbBackup.createBackup()
-        .then(backupPath => log(`Initial backup created at ${backupPath}`))
-        .catch(error => console.error('Initial backup failed:', error));
     });
   } catch (error) {
     console.error("Failed to start server:", error);
