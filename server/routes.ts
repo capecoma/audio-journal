@@ -117,28 +117,36 @@ export function registerRoutes(app: Express): Server {
       if (transcript) {
         try {
           const generatedTags = await generateTags(transcript);
-          
+              
           for (const tagName of generatedTags) {
             // First try to find if the tag exists
             let existingTag = await db.query.tags.findFirst({
-              where: (tags, { and, eq }) => and(
+              where: and(
                 eq(tags.name, tagName),
-                eq(tags.userId, 1)
+                eq(tags.userId, user.id)
               )
             });
 
             // If tag doesn't exist, create it
             if (!existingTag) {
               const [newTag] = await db.insert(tags)
-                .values({ name: tagName, userId: 1 })
+                .values({
+                  name: tagName,
+                  userId: user.id
+                })
                 .returning();
               existingTag = newTag;
             }
 
             // Associate tag with entry
-            await db.insert(entryTags)
-              .values({ entryId: entry.id, tagId: existingTag.id })
-              .onConflictDoNothing();
+            if (existingTag) {
+              await db.insert(entryTags)
+                .values({
+                  entryId: entry.id,
+                  tagId: existingTag.id
+                })
+                .onConflictDoNothing();
+            }
           }
         } catch (error) {
           console.error('Error generating tags:', error);
