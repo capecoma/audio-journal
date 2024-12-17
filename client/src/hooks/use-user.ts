@@ -10,9 +10,14 @@ export function useUser() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: user, isLoading } = useQuery<User>({
+  const { data: user, isLoading } = useQuery<SelectUser>({
     queryKey: ['/api/user'],
+    staleTime: Infinity, // Only refetch when explicitly invalidated
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
+    refetchInterval: false,
   });
 
   const loginMutation = useMutation({

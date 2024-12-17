@@ -104,9 +104,10 @@ export default function AuthPage() {
               variant="outline"
               className="w-full mt-4"
               onClick={() => window.location.href = "/auth/google"}
+              disabled={form.formState.isSubmitting}
             >
               <SiGoogle className="mr-2 h-4 w-4" />
-              Sign in with Google
+              Continue with Google
             </Button>
           </Tabs>
         </CardContent>
