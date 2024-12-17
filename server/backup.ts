@@ -16,7 +16,7 @@ export class DatabaseBackup {
 
   constructor(config: BackupConfig) {
     this.config = {
-      maxBackups: config.maxBackups || 7, // Keep a week's worth of backups by default
+      maxBackups: config.maxBackups || 7,
       backupDir: config.backupDir || 'backups',
     };
   }
@@ -26,38 +26,36 @@ export class DatabaseBackup {
       throw new Error('DATABASE_URL environment variable is not set');
     }
 
-    // Create backup directory if it doesn't exist
-    await fs.mkdir(this.config.backupDir, { recursive: true });
-
-    const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
-    const filename = `backup-${timestamp}.sql`;
-    const filepath = path.join(this.config.backupDir, filename);
-
     try {
-      const databaseUrl = new URL(process.env.DATABASE_URL);
-      
-      // Extract credentials from DATABASE_URL
-      const password = databaseUrl.password;
-      const user = databaseUrl.username;
-      const host = databaseUrl.hostname;
-      const port = databaseUrl.port || '5432'; // Default to 5432 if port is not specified
-      const database = databaseUrl.pathname.slice(1); // Remove leading '/'
+      // Create backup directory if it doesn't exist
+      await fs.mkdir(this.config.backupDir, { recursive: true });
 
-      if (!port || isNaN(parseInt(port))) {
-        throw new Error('Invalid port number in DATABASE_URL');
-      }
+      const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
+      const filename = `backup-${timestamp}.sql`;
+      const filepath = path.join(this.config.backupDir, filename);
 
-      // Set environment variables for pg_dump
-      const env = {
-        PGPASSWORD: password,
-        ...process.env,
+      // Parse database URL
+      const url = new URL(process.env.DATABASE_URL);
+      const config = {
+        host: url.hostname,
+        port: url.port || '5432',
+        database: url.pathname.slice(1),
+        user: url.username,
+        password: url.password,
       };
 
-      // Execute pg_dump
-      await execAsync(
-        `pg_dump -Fc -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`,
-        { env }
-      );
+      // For Neon database, we need to handle special connection parameters
+      const sslMode = url.searchParams.get('sslmode') || 'require';
+      
+      // Construct pg_dump command with proper escaping and format
+      const command = `PGPASSWORD=${config.password} PGSSLMODE=${sslMode} pg_dump -Fc -h ${config.host} -p ${config.port} -U ${config.user} -d ${config.database} -f ${filepath} --verbose --no-owner --no-acl`;
+
+      console.log('Starting database backup...');
+      const { stdout, stderr } = await execAsync(command);
+      
+      if (stderr) {
+        console.warn('pg_dump warnings:', stderr);
+      }
 
       console.log(`Database backup created successfully: ${filename}`);
       
@@ -65,9 +63,10 @@ export class DatabaseBackup {
       await this.rotateBackups();
 
       return filepath;
-    } catch (error) {
-      console.error('Error creating database backup:', error);
-      throw new Error(`Failed to create database backup: ${error}`);
+    } catch (error: any) {
+      const errorMessage = error.stderr || error.message;
+      console.error('Error creating database backup:', errorMessage);
+      throw new Error(`Failed to create database backup: ${errorMessage}`);
     }
   }
 
@@ -77,7 +76,7 @@ export class DatabaseBackup {
       const files = await fs.readdir(this.config.backupDir);
       const backupFiles = files
         .filter(file => file.startsWith('backup-') && file.endsWith('.sql'))
-        .sort() // Sort by name (which includes timestamp)
+        .sort()
         .reverse(); // Most recent first
 
       // Remove old backups if we have more than maxBackups
@@ -100,35 +99,32 @@ export class DatabaseBackup {
     }
 
     try {
-      const databaseUrl = new URL(process.env.DATABASE_URL);
-      
-      // Extract credentials from DATABASE_URL
-      const password = databaseUrl.password;
-      const user = databaseUrl.username;
-      const host = databaseUrl.hostname;
-      const port = databaseUrl.port || '5432'; // Default to 5432 if port is not specified
-      const database = databaseUrl.pathname.slice(1);
-
-      if (!port || isNaN(parseInt(port))) {
-        throw new Error('Invalid port number in DATABASE_URL');
-      }
-
-      // Set environment variables for pg_restore
-      const env = {
-        PGPASSWORD: password,
-        ...process.env,
+      const url = new URL(process.env.DATABASE_URL);
+      const config = {
+        host: url.hostname,
+        port: url.port || '5432',
+        database: url.pathname.slice(1),
+        user: url.username,
+        password: url.password,
       };
 
-      // Execute pg_restore
-      await execAsync(
-        `pg_restore -c -U ${user} -h ${host} -p ${port} -d ${database} ${backupPath}`,
-        { env }
-      );
+      const sslMode = url.searchParams.get('sslmode') || 'require';
+
+      // Construct pg_restore command with proper environment variables
+      const command = `PGPASSWORD=${config.password} PGSSLMODE=${sslMode} pg_restore -Fc -h ${config.host} -p ${config.port} -U ${config.user} -d ${config.database} --verbose --clean --no-owner --no-acl ${backupPath}`;
+
+      console.log('Starting database restore...');
+      const { stdout, stderr } = await execAsync(command);
+      
+      if (stderr) {
+        console.warn('pg_restore warnings:', stderr);
+      }
 
       console.log('Database restored successfully');
-    } catch (error) {
-      console.error('Error restoring database:', error);
-      throw new Error(`Failed to restore database: ${error}`);
+    } catch (error: any) {
+      const errorMessage = error.stderr || error.message;
+      console.error('Error restoring database:', errorMessage);
+      throw new Error(`Failed to restore database: ${errorMessage}`);
     }
   }
 }
