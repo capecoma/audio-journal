@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import passport from "./auth";
 
 // Verify environment variables
 if (!process.env.DATABASE_URL) {
@@ -15,6 +18,22 @@ const app = express();
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session configuration
+const MemoryStoreSession = MemoryStore(session);
+app.use(session({
+  cookie: { maxAge: 86400000 }, // 24 hours
+  store: new MemoryStoreSession({
+    checkPeriod: 86400000 // prune expired entries every 24h
+  }),
+  resave: false,
+  saveUninitialized: false,
+  secret: process.env.SESSION_SECRET || 'development_secret'
+}));
+
+// Initialize Passport and restore authentication state from session
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Request logging middleware
 app.use((req, res, next) => {
