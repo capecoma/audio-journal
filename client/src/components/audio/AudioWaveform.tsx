@@ -101,20 +101,29 @@ export default function AudioWaveform({
         });
 
         // Load audio with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), LOAD_TIMEOUT);
+        const loadPromise = new Promise((resolve, reject) => {
+          if (!wavesurfer.current) return reject(new Error('WaveSurfer not initialized'));
+          
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Loading timeout'));
+          }, LOAD_TIMEOUT);
+
+          wavesurfer.current.once('ready', () => {
+            clearTimeout(timeoutId);
+            resolve(true);
+          });
+
+          wavesurfer.current.once('error', (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+          });
+
+          wavesurfer.current.load(audioUrl);
+        });
 
         try {
-          const response = await fetch(audioUrl, { signal: controller.signal });
-          if (!response.ok) throw new Error('Failed to fetch audio');
-          
-          const arrayBuffer = await response.arrayBuffer();
-          const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-          
-          await wavesurfer.current.loadDecodedBuffer(audioBuffer);
-          clearTimeout(timeoutId);
+          await loadPromise;
         } catch (loadError: any) {
-          clearTimeout(timeoutId);
           console.error('Error loading audio:', loadError);
           setError(loadError.message || 'Error loading audio');
           setIsLoading(false);
