@@ -22,9 +22,30 @@ export default function DailySummary({ summaries }: DailySummaryProps) {
                   <span className="font-medium">
                     {format(new Date(summary.date), "PPP")}
                   </span>
-                  <p className="mt-2 text-sm whitespace-pre-wrap">
-                    {summary.highlightText}
-                  </p>
+                  <div className="mt-2 text-sm whitespace-pre-wrap prose prose-sm max-w-none">
+                    {summary.highlightText.split('\n').map((line, i) => {
+                      if (!line.trim()) return <br key={i} />;
+                      // Handle markdown-style bullet points
+                      if (line.startsWith('- ')) {
+                        return (
+                          <p key={i} className="mb-1">
+                            <span className="inline-block w-4">•</span>
+                            {line.substring(2)}
+                          </p>
+                        );
+                      }
+                      // Handle indented bullet points
+                      if (line.startsWith('  - ')) {
+                        return (
+                          <p key={i} className="mb-1 ml-4">
+                            <span className="inline-block w-4">•</span>
+                            {line.substring(4)}
+                          </p>
+                        );
+                      }
+                      return <p key={i} className="mb-1">{line}</p>;
+                    })}
+                  </div>
                 </div>
               </Card>
             ))}
