@@ -159,11 +159,22 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
+    // Check if username and password are present
+    if (!req.body.username || !req.body.password) {
       return res.status(400).json({
         ok: false,
-        message: result.error.issues.map(i => i.message).join(", ")
+        message: !req.body.username ? "Username is required" : "Password is required"
+      });
+    }
+
+    // Validate the input format
+    const result = insertUserSchema.safeParse(req.body);
+    if (!result.success) {
+      const errors = result.error.errors;
+      const messages = errors.map(error => error.message);
+      return res.status(400).json({
+        ok: false,
+        message: messages.join(", ")
       });
     }
 
