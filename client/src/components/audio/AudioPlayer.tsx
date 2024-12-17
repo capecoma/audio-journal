@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, PauseCircle, Volume2, VolumeX, FileText } from 'lucide-react';
+import { Volume2, VolumeX, FileText } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
+import AudioWaveform from './AudioWaveform';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -17,6 +18,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   const [audioDuration, setAudioDuration] = useState(duration);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [emotion, setEmotion] = useState<'neutral' | 'happy' | 'sad' | 'excited' | 'calm'>('neutral');
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -122,25 +124,46 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     return `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Detect emotion from transcript
+  useEffect(() => {
+    if (transcript) {
+      const text = transcript.toLowerCase();
+      if (text.match(/\b(happy|joy|excited|wonderful|great)\b/)) {
+        setEmotion('happy');
+      } else if (text.match(/\b(sad|upset|disappointed|worried)\b/)) {
+        setEmotion('sad');
+      } else if (text.match(/\b(wow|amazing|incredible|awesome)\b/)) {
+        setEmotion('excited');
+      } else if (text.match(/\b(peaceful|quiet|relaxed|gentle)\b/)) {
+        setEmotion('calm');
+      }
+    }
+  }, [transcript]);
+
   return (
-    <div className="w-full border rounded-lg p-4 bg-white shadow-sm">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={togglePlayPause}
-          className="h-10 w-10"
-        >
-          {isPlaying ? (
-            <PauseCircle className="h-6 w-6" />
-          ) : (
-            <PlayCircle className="h-6 w-6" />
-          )}
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-muted-foreground">
-            {formatTime(currentTime)} / {formatTime(audioDuration)}
-          </div>
+    <div className="w-full space-y-4">
+      <AudioWaveform 
+        audioUrl={audioUrl}
+        emotion={emotion}
+        onReady={() => {
+          const audio = audioRef.current;
+          if (audio && !isNaN(audio.duration) && audio.duration > 0) {
+            setAudioDuration(audio.duration);
+          }
+        }}
+        onPlay={() => {
+          setIsPlaying(true);
+          audioRef.current?.play();
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          audioRef.current?.pause();
+        }}
+      />
+      
+      <div className="flex items-center gap-2 px-4">
+        <div className="text-sm text-muted-foreground flex-1">
+          {formatTime(currentTime)} / {formatTime(audioDuration)}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -170,6 +193,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             size="icon"
             onClick={onTranscriptClick}
             className="h-8 w-8"
+            title="View transcript"
           >
             <FileText className="h-4 w-4" />
           </Button>
@@ -181,9 +205,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
         preload="metadata"
         onLoadedData={(e) => {
           const audio = e.currentTarget;
-          console.log('Audio loaded, checking duration:', audio.duration);
-          if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-            console.log('Setting duration from loaded audio:', audio.duration);
+          if (!isNaN(audio.duration) && audio.duration > 0) {
             setAudioDuration(audio.duration);
           }
         }}
