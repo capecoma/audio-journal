@@ -5,7 +5,6 @@ import { entries, summaries, tags, entryTags, users } from "@db/schema";
 import { eq, desc, and, sql, ilike } from "drizzle-orm"; // Added ilike import
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
-import authRoutes from "./routes/auth";
 
 // Simple middleware for user context
 async function addUserContext(req: Request, res: Response, next: NextFunction) {
@@ -46,9 +45,6 @@ export function registerRoutes(app: Express): Server {
   
   // Apply user context middleware to all API routes
   app.use('/api', addUserContext);
-
-  // Register authentication routes
-  app.use("/api/auth", authRoutes);
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -378,7 +374,6 @@ ${entry.transcript}
     }
   });
 
-  // Create and return HTTP server
   const httpServer = createServer(app);
   return httpServer;
 }
