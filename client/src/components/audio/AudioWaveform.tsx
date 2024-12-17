@@ -25,72 +25,98 @@ export default function AudioWaveform({
   onPause,
 }: AudioWaveformProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    let wavesurfer: WaveSurfer | null = null;
+    // Cleanup previous instance
+    if (wavesurferRef.current) {
+      wavesurferRef.current.destroy();
+      wavesurferRef.current = null;
+    }
 
-    const initializeWaveform = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+    try {
+      // Create new instance with minimal config
+      const wavesurfer = WaveSurfer.create({
+        container: containerRef.current,
+        height: 60,
+        waveColor: emotionColors[emotion],
+        progressColor: emotionColors[emotion] + '88',
+        cursorWidth: 0,
+        normalize: true,
+        interact: true,
+        hideScrollbar: true,
+        audioRate: 1,
+        autoCenter: true,
+        minPxPerSec: 1,
+      });
 
-        wavesurfer = WaveSurfer.create({
-          container: containerRef.current!,
-          height: 60,
-          waveColor: emotionColors[emotion],
-          progressColor: emotionColors[emotion] + '88',
-          cursorColor: emotionColors[emotion],
-          cursorWidth: 1,
-          barWidth: 2,
-          barGap: 1,
-          barRadius: 3,
-          normalize: true,
-        });
+      wavesurferRef.current = wavesurfer;
 
-        wavesurfer.on('ready', () => {
-          setIsLoading(false);
-          onReady?.();
-        });
+      wavesurfer.on('ready', () => {
+        setIsLoading(false);
+        onReady?.();
+      });
 
-        wavesurfer.on('play', () => {
-          onPlay?.();
-        });
+      wavesurfer.on('play', () => {
+        setIsPlaying(true);
+        onPlay?.();
+      });
 
-        wavesurfer.on('pause', () => {
-          onPause?.();
-        });
+      wavesurfer.on('pause', () => {
+        setIsPlaying(false);
+        onPause?.();
+      });
 
-        wavesurfer.on('error', (err) => {
-          console.error('WaveSurfer error:', err);
+      wavesurfer.on('error', (err) => {
+        console.error('WaveSurfer error:', err);
+        setError('Error loading audio');
+        setIsLoading(false);
+      });
+
+      // Load audio with error handling
+      const handleLoad = async () => {
+        try {
+          await wavesurfer.load(audioUrl);
+        } catch (err) {
+          console.error('Error loading audio:', err);
           setError('Error loading audio');
           setIsLoading(false);
-        });
+        }
+      };
 
-        await wavesurfer.load(audioUrl);
-      } catch (err) {
-        console.error('Error initializing WaveSurfer:', err);
-        setError('Error initializing audio player');
-        setIsLoading(false);
-      }
-    };
+      handleLoad();
+    } catch (err) {
+      console.error('Error initializing WaveSurfer:', err);
+      setError('Error initializing audio player');
+      setIsLoading(false);
+    }
 
-    initializeWaveform();
-
+    // Cleanup on unmount
     return () => {
-      if (wavesurfer) {
-        wavesurfer.destroy();
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
       }
     };
   }, [audioUrl, emotion]);
 
   const handleClick = () => {
-    const wavesurfer = containerRef.current?.querySelector('wave')?.wavesurfer;
-    if (wavesurfer && !isLoading && !error) {
-      wavesurfer.playPause();
+    if (!wavesurferRef.current || isLoading || error) return;
+    
+    try {
+      if (isPlaying) {
+        wavesurferRef.current.pause();
+      } else {
+        wavesurferRef.current.play();
+      }
+    } catch (err) {
+      console.error('Error toggling playback:', err);
+      setError('Error playing audio');
     }
   };
 
