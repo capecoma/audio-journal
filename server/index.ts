@@ -13,6 +13,19 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log('Request:', {
+      method: req.method,
+      path: req.path,
+      body: req.body,
+      headers: req.headers
+    });
+  }
+  next();
+});
+
 // Security middlewares
 import { apiLimiter, securityHeaders } from './middleware/security';
 app.use(securityHeaders);
