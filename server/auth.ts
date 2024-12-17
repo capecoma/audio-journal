@@ -104,9 +104,12 @@ export function setupAuth(app: Express) {
       const result = insertUserSchema.safeParse(req.body);
       
       if (!result.success) {
+        const errorMessages = result.error.issues.map(i => i.message);
         return res.status(400).json({
           ok: false,
-          message: result.error.issues.map(i => i.message).join(", ")
+          message: errorMessages.length > 0 
+            ? errorMessages.join(", ") 
+            : "Username and password are required"
         });
       }
 

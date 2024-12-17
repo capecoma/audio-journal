@@ -41,10 +41,11 @@ export default function AuthPage() {
       const result = await (action === "login" ? login(formData) : register(formData));
       
       if (!result.ok) {
+        const errorMessage = result.message || "An unexpected error occurred";
         toast({
           variant: "destructive",
           title: `${action === "login" ? "Login" : "Registration"} failed`,
-          description: result.message
+          description: errorMessage
         });
         return;
       }
