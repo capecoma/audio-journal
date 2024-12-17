@@ -2,10 +2,12 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
-const app = express();
+// Verify environment variables
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL must be set");
+}
 
-// Enable trust proxy for secure headers behind reverse proxy
-app.set('trust proxy', 1);
+const app = express();
 
 // Body parsing middleware
 app.use(express.json());

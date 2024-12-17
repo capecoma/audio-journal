@@ -7,19 +7,17 @@ import Journal from "./pages/Journal";
 
 function App() {
   return (
-    <div className="min-h-screen bg-background">
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/journal" component={Journal} />
-        <Route component={NotFound} />
-      </Switch>
-    </div>
+    <Switch>
+      <Route path="/" component={Dashboard} />
+      <Route path="/journal" component={Journal} />
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
 function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center">
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
       <Card className="w-full max-w-md mx-4">
         <CardContent className="pt-6 space-y-4">
           <div className="flex items-center gap-2">

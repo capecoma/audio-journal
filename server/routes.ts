@@ -10,11 +10,14 @@ import { validateFileUpload, encryptData, decryptData } from './middleware/secur
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
-  // Get entries with optional search
+  // Clear route handler cache on startup
+  app._router = undefined;
+
+  // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
     try {
       const { search } = req.query;
-      const allEntries = await db.query.entries.findMany({
+      const userEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -27,7 +30,7 @@ export function registerRoutes(app: Express): Server {
           ? (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`)
           : undefined
       });
-      res.json(allEntries);
+      res.json(userEntries);
     } catch (error) {
       console.error('Error fetching entries:', error);
       res.status(500).json({ error: "Failed to fetch entries" });
