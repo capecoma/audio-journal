@@ -49,7 +49,9 @@ export default function AudioWaveform({
           height: 60,
           normalize: true,
           backend: 'WebAudio',
-          responsive: true,
+          minPxPerSec: 50,
+          mediaControls: false,
+          interact: false,
         });
 
         // Set up event listeners
@@ -73,8 +75,18 @@ export default function AudioWaveform({
           setIsLoading(false);
         });
 
-        // Load audio
-        await wavesurfer.current.load(audioUrl);
+        // Load audio with timeout and error handling
+        try {
+          const loadPromise = wavesurfer.current.load(audioUrl);
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Loading timeout')), 10000);
+          });
+          await Promise.race([loadPromise, timeoutPromise]);
+        } catch (loadError) {
+          console.error('Error loading audio:', loadError);
+          setIsLoading(false);
+          throw loadError;
+        }
       } catch (error) {
         console.error('Error initializing WaveSurfer:', error);
         setIsLoading(false);
@@ -86,8 +98,16 @@ export default function AudioWaveform({
     // Cleanup
     return () => {
       if (wavesurfer.current) {
-        wavesurfer.current.destroy();
-        wavesurfer.current = null;
+        try {
+          wavesurfer.current.pause();
+          wavesurfer.current.destroy();
+        } catch (error) {
+          console.error('Error cleaning up WaveSurfer:', error);
+        } finally {
+          wavesurfer.current = null;
+          setIsPlaying(false);
+          setIsLoading(true);
+        }
       }
     };
   }, [audioUrl]);
