@@ -151,7 +151,7 @@ export default function AudioWaveform({
             return;
           }
 
-          await wavesurfer.current.loadDecodedBuffer(audioBuffer);
+          await wavesurfer.current.setDecodedBuffer(audioBuffer);
           clearTimeout(timeoutId);
         } catch (loadError: any) {
           clearTimeout(timeoutId);
