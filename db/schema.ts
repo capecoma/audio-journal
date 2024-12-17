@@ -1,19 +1,9 @@
-import { pgTable, text, serial, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, date } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
-import { z } from "zod";
-
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").unique().notNull(),
-  password: text("password").notNull(),
-  isAdmin: boolean("is_admin").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow()
-});
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
   audioUrl: text("audio_url").notNull(),
   transcript: text("transcript"),
   duration: integer("duration"),
@@ -22,7 +12,6 @@ export const entries = pgTable("entries", {
 
 export const tags = pgTable("tags", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
@@ -76,11 +65,3 @@ export const selectSummarySchema = createSelectSchema(summaries);
 export type Summary = typeof summaries.$inferSelect;
 export type NewSummary = typeof summaries.$inferInsert;
 
-// User schemas
-export const insertUserSchema = z.object({
-  username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
-  password: z.string().min(1, "Password is required").min(6, "Password must be at least 6 characters"),
-});
-export const selectUserSchema = createSelectSchema(users);
-export type SelectUser = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
