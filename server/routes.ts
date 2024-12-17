@@ -265,6 +265,74 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Analytics endpoint
+  app.get("/api/analytics", async (_req, res) => {
+    try {
+      const userId = _req.app.locals.userId;
+
+      // Get feature usage stats
+      // Get counts using SQL count aggregation
+      const [
+        recordingCount,
+        transcriptionCount,
+        summaryCount,
+        tagCount
+      ] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(entries).then(res => Number(res[0].count)),
+        db.select({ count: sql<number>`count(*)` })
+          .from(entries)
+          .where(sql`transcript is not null`)
+          .then(res => Number(res[0].count)),
+        db.select({ count: sql<number>`count(*)` }).from(summaries).then(res => Number(res[0].count)),
+        db.select({ count: sql<number>`count(*)` }).from(tags).then(res => Number(res[0].count))
+      ]);
+
+      // Calculate daily stats for the last 14 days
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      const dailyEntries = await db.query.entries.findMany({
+        where: and(
+          eq(entries.userId, userId),
+          sql`${entries.createdAt} >= ${twoWeeksAgo.toISOString()}`
+        ),
+      });
+
+      // Group entries by date
+      const dailyStats = Array.from({ length: 14 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+        
+        const count = dailyEntries.filter(entry => {
+          const entryDate = new Date(entry.createdAt);
+          entryDate.setHours(0, 0, 0, 0);
+          return entryDate.getTime() === date.getTime();
+        }).length;
+
+        return {
+          date: date.toISOString().split('T')[0],
+          count
+        };
+      }).reverse();
+
+      const featureUsage = [
+        { feature: "Recordings", count: recordingCount },
+        { feature: "Transcriptions", count: transcriptionCount },
+        { feature: "Daily Summaries", count: summaryCount },
+        { feature: "Tags", count: tagCount }
+      ];
+
+      res.json({
+        featureUsage,
+        dailyStats
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
