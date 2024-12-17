@@ -49,97 +49,67 @@ export default function AudioWaveform({
   useEffect(() => {
     if (!waveformRef.current) return;
 
-    const initWaveSurfer = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        // Cleanup previous instance if it exists
-        destroyWaveSurfer();
+    setIsLoading(true);
+    setError(null);
 
-        // Create new instance with error handling
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        
-        wavesurfer.current = WaveSurfer.create({
-          container: waveformRef.current!,
-          waveColor: emotionColors[emotion],
-          progressColor: emotionColors[emotion] + '88',
-          cursorColor: emotionColors[emotion],
-          barWidth: 2,
-          barGap: 1,
-          barRadius: 3,
-          cursorWidth: 1,
-          height: 60,
-          normalize: true,
-          backend: 'WebAudio',
-          minPxPerSec: 50,
-          mediaControls: false,
-          interact: false,
-        });
+    // Cleanup previous instance
+    destroyWaveSurfer();
 
-        // Set up event listeners
-        wavesurfer.current.on('ready', () => {
-          setIsLoading(false);
-          setError(null);
-          onReady?.();
-        });
+    // Create new instance
+    wavesurfer.current = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: emotionColors[emotion],
+      progressColor: emotionColors[emotion] + '88',
+      cursorColor: emotionColors[emotion],
+      barWidth: 2,
+      barGap: 1,
+      barRadius: 3,
+      cursorWidth: 1,
+      height: 60,
+      normalize: true,
+      mediaControls: true,
+      interact: true,
+    });
 
-        wavesurfer.current.on('play', () => {
-          setIsPlaying(true);
-          onPlay?.();
-        });
+    // Set up event listeners
+    wavesurfer.current.on('ready', () => {
+      setIsLoading(false);
+      setError(null);
+      onReady?.();
+    });
 
-        wavesurfer.current.on('pause', () => {
-          setIsPlaying(false);
-          onPause?.();
-        });
+    wavesurfer.current.on('play', () => {
+      setIsPlaying(true);
+      onPlay?.();
+    });
 
-        wavesurfer.current.on('error', (error) => {
-          console.error('WaveSurfer error:', error);
-          setError('Error loading audio');
-          setIsLoading(false);
-        });
+    wavesurfer.current.on('pause', () => {
+      setIsPlaying(false);
+      onPause?.();
+    });
 
-        // Load audio with timeout
-        const loadPromise = new Promise((resolve, reject) => {
-          if (!wavesurfer.current) return reject(new Error('WaveSurfer not initialized'));
-          
-          const timeoutId = setTimeout(() => {
-            reject(new Error('Loading timeout'));
-          }, LOAD_TIMEOUT);
+    wavesurfer.current.on('error', (error) => {
+      console.error('WaveSurfer error:', error);
+      setError('Error loading audio');
+      setIsLoading(false);
+    });
 
-          wavesurfer.current.once('ready', () => {
-            clearTimeout(timeoutId);
-            resolve(true);
-          });
+    // Load the audio file
+    try {
+      wavesurfer.current.load(audioUrl);
+    } catch (error) {
+      console.error('Error loading audio:', error);
+      setError('Error loading audio');
+      setIsLoading(false);
+    }
 
-          wavesurfer.current.once('error', (err) => {
-            clearTimeout(timeoutId);
-            reject(err);
-          });
-
-          wavesurfer.current.load(audioUrl);
-        });
-
-        try {
-          await loadPromise;
-        } catch (loadError: any) {
-          console.error('Error loading audio:', loadError);
-          setError(loadError.message || 'Error loading audio');
-          setIsLoading(false);
-          destroyWaveSurfer();
-        }
-      } catch (error: any) {
-        console.error('Error initializing WaveSurfer:', error);
-        setError(error.message || 'Error initializing audio player');
-        setIsLoading(false);
-        destroyWaveSurfer();
+    // Cleanup on unmount
+    return () => {
+      if (wavesurfer.current) {
+        wavesurfer.current.destroy();
       }
     };
-
-    initWaveSurfer();
-    return destroyWaveSurfer;
-  }, [audioUrl, destroyWaveSurfer]);
+  }, [audioUrl, emotion]);
 
   // Update waveform color when emotion changes
   useEffect(() => {
