@@ -16,6 +16,7 @@ import {
 import { insertUserSchema } from "@db/schema";
 import { useUser } from "@/hooks/use-user";
 import type { InsertUser } from "@db/schema";
+import { SiGoogle } from "react-icons/si";
 
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -81,12 +82,32 @@ export default function AuthPage() {
               </div>
               <Button 
                 type="submit" 
-                className="w-full"
+                className="w-full mb-4"
                 disabled={form.formState.isSubmitting}
               >
                 {tab === "login" ? "Sign In" : "Create Account"}
               </Button>
             </form>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              onClick={() => window.location.href = "/auth/google"}
+            >
+              <SiGoogle className="mr-2 h-4 w-4" />
+              Sign in with Google
+            </Button>
           </Tabs>
         </CardContent>
       </Card>

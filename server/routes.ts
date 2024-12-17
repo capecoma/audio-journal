@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries, tags, entryTags, users, type SelectUser } from "@db/schema";
+import { entries, summaries, tags, entryTags, type SelectUser } from "@db/schema";
 import { eq, desc, and, sql, ilike } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
@@ -13,37 +13,34 @@ declare global {
   }
 }
 
-// Authentication middleware to ensure user is logged in
-async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  next();
-}
-
-// User context middleware now uses authenticated user
-async function addUserContext(req: Request, res: Response, next: NextFunction) {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
-    req.app.locals.userId = req.user.id;
-    next();
-  } catch (error) {
-    console.error('Error adding user context:', error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-}
-
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
-  // Set up authentication
+  // Set up authentication first
   setupAuth(app);
 
-  // Clear route handler cache on startup
-  app._router = undefined;
-  
+  // Authentication middleware to ensure user is logged in
+  function requireAuth(req: Request, res: Response, next: NextFunction) {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    next();
+  }
+
+  // User context middleware uses authenticated user
+  function addUserContext(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      req.app.locals.userId = req.user.id;
+      next();
+    } catch (error) {
+      console.error('Error adding user context:', error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
   // Protect API routes with authentication
   app.use('/api', requireAuth, addUserContext);
 
