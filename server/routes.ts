@@ -22,6 +22,26 @@ const upload = multer({ storage: multer.memoryStorage() });
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
+
+  // Initialize development user if it doesn't exist
+  (async () => {
+    try {
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.id, 1)
+      });
+
+      if (!existingUser) {
+        await db.insert(users).values({
+          id: 1, // Fixed ID for development
+          username: "dev_user",
+          password: "dev_password"
+        });
+        console.log("Development user created successfully");
+      }
+    } catch (error) {
+      console.error("Error initializing development user:", error);
+    }
+  })();
   
   // Apply user context middleware to all API routes
   app.use('/api', addUserContext);
@@ -76,12 +96,21 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: error.message });
       }
 
+      // Verify user exists before creating entry
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, 1)
+      });
+
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
       // Create entry
       const [entry] = await db.insert(entries).values({
         audioUrl,
         transcript,
         duration,
-        userId: 1, // TODO: Get from auth
+        userId: user.id,
       }).returning();
 
       // Generate and save tags
