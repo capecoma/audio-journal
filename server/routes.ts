@@ -159,27 +159,36 @@ export function registerRoutes(app: Express): Server {
       today.setHours(0, 0, 0, 0);
 
       const todaysEntries = await db.query.entries.findMany({
-        where: eq(entries.userId, 1),
+        where: and(
+          eq(entries.userId, user.id),
+          eq(entries.createdAt, today)
+        ),
+        orderBy: [desc(entries.createdAt)]
       });
 
-      const transcripts = todaysEntries.map(e => e.transcript).filter(Boolean);
-      const summaryText = await generateSummary(transcripts as string[]);
+      const transcripts = todaysEntries
+        .map(e => e.transcript)
+        .filter((t): t is string => t !== null);
+      
+      if (transcripts.length > 0) {
+        const summaryText = await generateSummary(transcripts);
 
       // Update or create daily summary
-      await db.insert(summaries)
-        .values({
-          userId: user.id,
-          date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
-          highlightText: summaryText,
-        })
-        .onConflictDoUpdate({
-          target: "summaries_date_user_idx",
-          set: { highlightText: summaryText },
-          where: and(
-            eq(summaries.userId, user.id),
-            eq(summaries.date, today.toISOString().split('T')[0])
-          )
-        });
+        await db.insert(summaries)
+          .values({
+            userId: user.id,
+            date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
+            highlightText: summaryText,
+          })
+          .onConflictDoUpdate({
+            target: "summaries_date_user_idx",
+            set: { highlightText: summaryText },
+            where: and(
+              eq(summaries.userId, user.id),
+              eq(summaries.date, today.toISOString().split('T')[0])
+            )
+          });
+      }
 
       res.json(entry);
     } catch (error: any) {
@@ -191,11 +200,16 @@ export function registerRoutes(app: Express): Server {
   // Get daily summaries
   app.get("/api/summaries/daily", async (_req, res) => {
     try {
+      // Get user ID from context
+      const userId = _req.app.locals.userId;
+      
       const userSummaries = await db.query.summaries.findMany({
-        orderBy: desc(summaries.date),
+        where: eq(summaries.userId, userId),
+        orderBy: [desc(summaries.date)],
       });
       res.json(userSummaries);
     } catch (error) {
+      console.error('Error fetching daily summaries:', error);
       res.status(500).json({ error: "Failed to fetch summaries" });
     }
   });
