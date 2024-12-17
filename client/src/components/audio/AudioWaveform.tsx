@@ -53,8 +53,14 @@ export default function AudioWaveform({
       cleanup();
 
       try {
+        // Ensure container element exists
+        const container = containerRef.current;
+        if (!container) {
+          throw new Error('Container element not found');
+        }
+
         const wavesurfer = WaveSurfer.create({
-          container: containerRef.current,
+          container, // Now TypeScript knows this is definitely an HTMLElement
           height: 60,
           waveColor: emotionColors[emotion],
           progressColor: emotionColors[emotion] + '88',
@@ -66,6 +72,14 @@ export default function AudioWaveform({
           autoCenter: true,
           minPxPerSec: 1,
           backend: 'WebAudio',
+          xhr: {
+            // Add cache busting to prevent stale audio files
+            cache: 'no-cache',
+            credentials: 'same-origin',
+            headers: {
+              'Cache-Control': 'no-cache',
+            }
+          }
         });
 
         wavesurferRef.current = wavesurfer;
@@ -118,26 +132,55 @@ export default function AudioWaveform({
     };
 
     const loadAudio = async (wavesurfer: WaveSurfer) => {
-      try {
-        if (abortController.signal.aborted) return;
-        
-        await wavesurfer.load(audioUrl);
-        
-        // Additional validation after loading
-        if (!wavesurfer.getDuration() && !abortController.signal.aborted) {
-          throw new Error('Invalid audio duration');
+      const attemptLoad = async (attempt: number): Promise<void> => {
+        try {
+          if (abortController.signal.aborted) {
+            throw new Error('Operation aborted');
+          }
+
+          // Create a timeout promise
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Audio load timeout')), 10000);
+          });
+
+          // Race between the load operation and timeout
+          await Promise.race([
+            wavesurfer.load(audioUrl),
+            timeoutPromise
+          ]);
+
+          // Validate the loaded audio
+          if (!wavesurfer.getDuration()) {
+            throw new Error('Invalid audio duration');
+          }
+
+          // If we get here, loading was successful
+          return;
+        } catch (err) {
+          if (abortController.signal.aborted) {
+            throw new Error('Operation aborted');
+          }
+
+          console.error(`Error loading audio (attempt ${attempt}/${MAX_RETRIES}):`, err);
+          
+          if (attempt < MAX_RETRIES) {
+            // Wait before retrying, with exponential backoff
+            const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return attemptLoad(attempt + 1);
+          }
+          
+          // If we've exhausted all retries, rethrow the error
+          throw err;
         }
+      };
+
+      try {
+        await attemptLoad(1);
       } catch (err) {
-        if (abortController.signal.aborted) return;
-        
-        console.error('Error loading audio:', err);
-        if (retryCount < MAX_RETRIES) {
-          retryCount++;
-          console.log(`Retrying audio load (attempt ${retryCount}/${MAX_RETRIES})...`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          await loadAudio(wavesurfer);
-        } else {
-          setError('Error loading audio');
+        if (!abortController.signal.aborted) {
+          console.error('Final error loading audio:', err);
+          setError(err instanceof Error ? err.message : 'Error loading audio');
           setIsLoading(false);
         }
       }
