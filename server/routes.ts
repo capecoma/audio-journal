@@ -160,12 +160,12 @@ export function registerRoutes(app: Express): Server {
       // Update or create daily summary
       await db.insert(summaries)
         .values({
-          userId: 1,
-          date: today.toISOString(),
+          userId: user.id,
+          date: today,
           highlightText: summaryText,
         })
         .onConflictDoUpdate({
-          target: [summaries.userId, summaries.date],
+          target: "summaries_date_user_idx",
           set: { highlightText: summaryText },
         });
 

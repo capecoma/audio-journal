@@ -51,7 +51,9 @@ export const summaries = pgTable("summaries", {
   date: date("date").notNull(),
   highlightText: text("highlight_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull()
-});
+}, (t) => ({
+  dateUserIdx: unique("summaries_date_user_idx").on(t.date, t.userId)
+}));
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
