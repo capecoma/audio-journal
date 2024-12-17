@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags, users } from "@db/schema";
-import { eq, desc, and, lt, isNull } from "drizzle-orm";
+import { eq, desc, and, sql, ilike } from "drizzle-orm"; // Added ilike import
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 
@@ -98,7 +98,7 @@ export function registerRoutes(app: Express): Server {
 
       // Verify user exists before creating entry
       const user = await db.query.users.findFirst({
-        where: eq(users.id, 1)
+        where: eq(users.id, req.app.locals.userId)
       });
 
       if (!user) {
@@ -158,36 +158,44 @@ export function registerRoutes(app: Express): Server {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      // Get entries for today using date part comparison
       const todaysEntries = await db.query.entries.findMany({
         where: and(
           eq(entries.userId, user.id),
-          eq(entries.createdAt, today)
+          sql`DATE(${entries.createdAt}) = ${today.toISOString().split('T')[0]}`
         ),
         orderBy: [desc(entries.createdAt)]
       });
+
+      console.log('Found entries for today:', todaysEntries.length);
 
       const transcripts = todaysEntries
         .map(e => e.transcript)
         .filter((t): t is string => t !== null);
       
+      console.log('Found transcripts:', transcripts.length);
+      
       if (transcripts.length > 0) {
-        const summaryText = await generateSummary(transcripts);
+        try {
+          console.log('Generating summary for transcripts:', transcripts);
+          const summaryText = await generateSummary(transcripts);
+          console.log('Generated summary:', summaryText);
 
-      // Update or create daily summary
-        await db.insert(summaries)
-          .values({
-            userId: user.id,
-            date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
-            highlightText: summaryText,
-          })
-          .onConflictDoUpdate({
-            target: "summaries_date_user_idx",
-            set: { highlightText: summaryText },
-            where: and(
-              eq(summaries.userId, user.id),
-              eq(summaries.date, today.toISOString().split('T')[0])
-            )
-          });
+          // Update or create daily summary
+          await db.insert(summaries)
+            .values({
+              userId: user.id,
+              date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
+              highlightText: summaryText,
+            })
+            .onConflictDoUpdate({
+              target: ["date", "user_id"],
+              set: { highlightText: summaryText }
+            });
+        } catch (error) {
+          console.error('Error generating summary:', error);
+          // Continue with the entry creation even if summary generation fails
+        }
       }
 
       res.json(entry);
@@ -207,6 +215,12 @@ export function registerRoutes(app: Express): Server {
         where: eq(summaries.userId, userId),
         orderBy: [desc(summaries.date)],
       });
+      
+      console.log('Found summaries for user:', userSummaries.length);
+      if (userSummaries.length > 0) {
+        console.log('Sample summary:', userSummaries[0]);
+      }
+      
       res.json(userSummaries);
     } catch (error) {
       console.error('Error fetching daily summaries:', error);
@@ -214,83 +228,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Usage analytics endpoint
-  app.get("/api/analytics", async (_req, res) => {
-    try {
-      // Get user ID from context
-      const userId = _req.app.locals.userId;
-      
-      // Fetch entries for the user
-      const userEntries = await db.query.entries.findMany({
-        where: eq(entries.userId, userId),
-        orderBy: [desc(entries.createdAt)],
-        with: {
-          entryTags: {
-            with: {
-              tag: true
-            }
-          }
-        }
-      });
-
-      // Get summary count for the user
-      const summaryCount = await db.query.summaries.findMany({
-        where: eq(summaries.userId, userId)
-      }).then(results => results.length);
-
-      // Calculate usage statistics
-      const featureUsage = [
-        { feature: "Total Recordings", count: userEntries.length },
-        { feature: "Transcribed Entries", count: userEntries.filter(entry => entry.transcript).length },
-        { feature: "Tagged Entries", count: userEntries.filter(entry => entry.entryTags?.length > 0).length },
-        { feature: "Daily Summaries", count: summaryCount },
-      ];
-
-      // Calculate daily usage trends
-      const dailyStats = userEntries.reduce((acc: Record<string, number>, entry) => {
-        if (entry.createdAt) {
-          const date = new Date(entry.createdAt).toLocaleDateString('en-US', { 
-            month: 'short',
-            day: 'numeric'
-          });
-          acc[date] = (acc[date] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-      // Format response
-      const response = {
-        featureUsage,
-        dailyStats: Object.entries(dailyStats).map(([date, count]) => ({
-          date,
-          count
-        }))
-      };
-
-      console.log('Analytics response:', response);
-      res.json(response);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      res.status(500).json({ error: "Failed to fetch analytics" });
-    }
-  });
-
-  // Tag management endpoints
-  app.get("/api/tags", async (_req, res) => {
-    try {
-      const userTags = await db.query.tags.findMany({
-        orderBy: desc(tags.createdAt),
-      });
-      res.json(userTags);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch tags" });
-    }
-  });
-
   // Export entries endpoint
   app.get("/api/entries/export", async (_req, res) => {
     try {
-      const entries = await db.query.entries.findMany({
+      const exportEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -301,7 +242,7 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = entries.map(entry => ({
+      const exportData = exportEntries.map(entry => ({
         date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
