@@ -1,81 +1,20 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import cors from "cors";
 
 // Verify environment variables
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set");
 }
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("OPENAI_API_KEY must be set");
+}
 
 const app = express();
 
-// Basic security headers
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  next();
-});
-
-// Body parsing middleware - must be before auth setup
+// Basic middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Debug middleware for API requests
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log('Incoming request:', {
-      method: req.method,
-      path: req.path,
-      contentType: req.headers['content-type'],
-      body: req.body,
-      query: req.query,
-      params: req.params
-    });
-  }
-  next();
-});
-
-// Debug middleware for API requests
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log('Incoming request:', {
-      method: req.method,
-      path: req.path,
-      contentType: req.headers['content-type'],
-      body: req.body,
-      query: req.query,
-      params: req.params
-    });
-  }
-  next();
-});
-
-// Request logging middleware for debugging
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log('Request:', {
-      method: req.method,
-      path: req.path,
-      body: req.body,
-      headers: req.headers
-    });
-  }
-  next();
-});
-
-// Security middlewares
-import { apiLimiter, securityHeaders } from './middleware/security';
-app.use(securityHeaders);
-app.use('/api', apiLimiter);
-
-// Request logging middleware
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log('Request body:', req.body);
-  }
-  next();
-});
+app.use(express.urlencoded({ extended: false }));
 
 // Request logging middleware
 app.use((req, res, next) => {
