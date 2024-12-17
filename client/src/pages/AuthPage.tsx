@@ -49,14 +49,52 @@ export default function AuthPage() {
     try {
       setIsSubmitting(true);
       
+      // Debug: Log form state
+      console.log('=== Form Submission Debug ===');
+      console.log('Current tab:', activeTab);
+      console.log('Form data:', formData);
+      console.log('Form state:', {
+        isDirty: form.formState.isDirty,
+        isValid: form.formState.isValid,
+        errors: form.formState.errors,
+      });
+      
       // Clear previous form errors
       form.clearErrors();
 
-      console.log(`Submitting ${activeTab} with data:`, formData);
+      // Validate required fields
+      if (!formData.username || !formData.password) {
+        console.error('Debug: Missing required fields', {
+          username: !!formData.username,
+          password: !!formData.password
+        });
+        toast({
+          variant: "destructive",
+          title: "Validation Error",
+          description: "Username and password are required"
+        });
+        return;
+      }
+
+      // Debug: Log API call
+      console.log('Attempting API call:', {
+        endpoint: activeTab === "login" ? "/api/login" : "/api/register",
+        payload: {
+          username: formData.username,
+          password: '[REDACTED]'
+        }
+      });
 
       const result = await (activeTab === "login" ? login(formData) : register(formData));
       
+      // Debug: Log API response
+      console.log('API Response:', {
+        success: result.ok,
+        message: result.message || 'No message provided'
+      });
+      
       if (!result.ok) {
+        console.error('Debug: API call failed', result);
         toast({
           variant: "destructive",
           title: `${activeTab === "login" ? "Login" : "Registration"} failed`,
@@ -68,12 +106,16 @@ export default function AuthPage() {
       // Clear form after successful submission
       form.reset();
 
+      console.log('Debug: Form submission successful');
       toast({
         title: `${activeTab === "login" ? "Login" : "Registration"} successful`,
         description: `Welcome ${formData.username}!`,
       });
     } catch (error: any) {
-      console.error("Form submission error:", error);
+      console.error('Debug: Unexpected error during form submission:', {
+        error: error.message,
+        stack: error.stack
+      });
       toast({
         variant: "destructive",
         title: `${activeTab === "login" ? "Login" : "Registration"} failed`,
@@ -81,6 +123,7 @@ export default function AuthPage() {
       });
     } finally {
       setIsSubmitting(false);
+      console.log('=== End Form Submission Debug ===');
     }
   };
 
