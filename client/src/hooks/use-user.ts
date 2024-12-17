@@ -18,21 +18,12 @@ async function handleRequest(
       method,
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
       },
       body: body ? JSON.stringify(body) : undefined,
       credentials: "include",
     });
 
-    // Always try to parse JSON response first
-    const contentType = response.headers.get("content-type");
-    let data;
-    
-    if (contentType && contentType.includes("application/json")) {
-      data = await response.json();
-    } else {
-      data = { message: await response.text() };
-    }
+    const data = await response.json();
 
     if (!response.ok) {
       return { 
