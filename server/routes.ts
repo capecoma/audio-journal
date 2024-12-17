@@ -182,16 +182,34 @@ export function registerRoutes(app: Express): Server {
           console.log('Generated summary:', summaryText);
 
           // Update or create daily summary
-          await db.insert(summaries)
-            .values({
+          // Format the date consistently
+          const formattedDate = today.toISOString().split('T')[0];
+          
+          // Try to find existing summary
+          const existingSummary = await db.query.summaries.findFirst({
+            where: and(
+              eq(summaries.userId, user.id),
+              eq(summaries.date, sql`${formattedDate}`)
+            )
+          });
+
+          if (existingSummary) {
+            // Update existing summary
+            await db
+              .update(summaries)
+              .set({ highlightText: summaryText })
+              .where(and(
+                eq(summaries.userId, user.id),
+                eq(summaries.date, sql`${formattedDate}`)
+              ));
+          } else {
+            // Insert new summary
+            await db.insert(summaries).values({
               userId: user.id,
-              date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
+              date: formattedDate,
               highlightText: summaryText,
-            })
-            .onConflictDoUpdate({
-              target: ["date", "user_id"],
-              set: { highlightText: summaryText }
             });
+          }
         } catch (error) {
           console.error('Error generating summary:', error);
           // Continue with the entry creation even if summary generation fails
@@ -211,17 +229,36 @@ export function registerRoutes(app: Express): Server {
       // Get user ID from context
       const userId = _req.app.locals.userId;
       
+      // Get the last 7 days of summaries
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
       const userSummaries = await db.query.summaries.findMany({
-        where: eq(summaries.userId, userId),
+        where: and(
+          eq(summaries.userId, userId),
+          sql`${summaries.date} >= ${sevenDaysAgo.toISOString().split('T')[0]}`
+        ),
         orderBy: [desc(summaries.date)],
       });
       
-      console.log('Found summaries for user:', userSummaries.length);
-      if (userSummaries.length > 0) {
-        console.log('Sample summary:', userSummaries[0]);
+      // Format summaries for better display
+      const formattedSummaries = userSummaries.map(summary => ({
+        ...summary,
+        date: new Date(summary.date).toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        highlights: summary.highlightText.split('\n').filter(line => line.trim()),
+      }));
+      
+      console.log('Found and formatted summaries:', formattedSummaries.length);
+      if (formattedSummaries.length > 0) {
+        console.log('Sample formatted summary:', formattedSummaries[0]);
       }
       
-      res.json(userSummaries);
+      res.json(formattedSummaries);
     } catch (error) {
       console.error('Error fetching daily summaries:', error);
       res.status(500).json({ error: "Failed to fetch summaries" });
