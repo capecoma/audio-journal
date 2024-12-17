@@ -10,8 +10,21 @@ if (!process.env.DATABASE_URL) {
 const app = express();
 
 // Body parsing middleware - must be before auth setup
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log('Incoming request:', {
+      method: req.method,
+      path: req.path,
+      contentType: req.headers['content-type'],
+      body: req.body
+    });
+  }
+  next();
+});
 
 // Request logging middleware for debugging
 app.use((req, res, next) => {
