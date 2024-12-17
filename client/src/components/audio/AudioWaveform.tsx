@@ -33,77 +33,123 @@ export default function AudioWaveform({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Cleanup previous instance
-    if (wavesurferRef.current) {
-      wavesurferRef.current.destroy();
-      wavesurferRef.current = null;
-    }
+    const abortController = new AbortController();
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
 
-    try {
-      // Create new instance with minimal config
-      const wavesurfer = WaveSurfer.create({
-        container: containerRef.current,
-        height: 60,
-        waveColor: emotionColors[emotion],
-        progressColor: emotionColors[emotion] + '88',
-        cursorWidth: 0,
-        normalize: true,
-        interact: true,
-        hideScrollbar: true,
-        audioRate: 1,
-        autoCenter: true,
-        minPxPerSec: 1,
-      });
-
-      wavesurferRef.current = wavesurfer;
-
-      wavesurfer.on('ready', () => {
-        setIsLoading(false);
-        onReady?.();
-      });
-
-      wavesurfer.on('play', () => {
-        setIsPlaying(true);
-        onPlay?.();
-      });
-
-      wavesurfer.on('pause', () => {
-        setIsPlaying(false);
-        onPause?.();
-      });
-
-      wavesurfer.on('error', (err) => {
-        console.error('WaveSurfer error:', err);
-        setError('Error loading audio');
-        setIsLoading(false);
-      });
-
-      // Load audio with error handling
-      const handleLoad = async () => {
-        try {
-          await wavesurfer.load(audioUrl);
-        } catch (err) {
-          console.error('Error loading audio:', err);
-          setError('Error loading audio');
-          setIsLoading(false);
-        }
-      };
-
-      handleLoad();
-    } catch (err) {
-      console.error('Error initializing WaveSurfer:', err);
-      setError('Error initializing audio player');
-      setIsLoading(false);
-    }
-
-    // Cleanup on unmount
-    return () => {
+    const cleanup = () => {
       if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
+        try {
+          wavesurferRef.current.destroy();
+        } catch (err) {
+          console.error('Error during cleanup:', err);
+        }
         wavesurferRef.current = null;
       }
     };
-  }, [audioUrl, emotion]);
+
+    const initializeWaveSurfer = async () => {
+      cleanup();
+
+      try {
+        const wavesurfer = WaveSurfer.create({
+          container: containerRef.current,
+          height: 60,
+          waveColor: emotionColors[emotion],
+          progressColor: emotionColors[emotion] + '88',
+          cursorWidth: 0,
+          normalize: true,
+          interact: true,
+          hideScrollbar: true,
+          audioRate: 1,
+          autoCenter: true,
+          minPxPerSec: 1,
+          backend: 'WebAudio',
+        });
+
+        wavesurferRef.current = wavesurfer;
+
+        wavesurfer.on('ready', () => {
+          if (!abortController.signal.aborted) {
+            setIsLoading(false);
+            onReady?.();
+          }
+        });
+
+        wavesurfer.on('play', () => {
+          if (!abortController.signal.aborted) {
+            setIsPlaying(true);
+            onPlay?.();
+          }
+        });
+
+        wavesurfer.on('pause', () => {
+          if (!abortController.signal.aborted) {
+            setIsPlaying(false);
+            onPause?.();
+          }
+        });
+
+        wavesurfer.on('error', async (err) => {
+          console.error('WaveSurfer error:', err);
+          
+          if (abortController.signal.aborted) return;
+
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            console.log(`Retrying audio load (attempt ${retryCount}/${MAX_RETRIES})...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            await loadAudio(wavesurfer);
+          } else {
+            setError('Error loading audio');
+            setIsLoading(false);
+          }
+        });
+
+        await loadAudio(wavesurfer);
+      } catch (err) {
+        if (!abortController.signal.aborted) {
+          console.error('Error initializing WaveSurfer:', err);
+          setError('Error initializing audio player');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const loadAudio = async (wavesurfer: WaveSurfer) => {
+      try {
+        if (abortController.signal.aborted) return;
+        
+        await wavesurfer.load(audioUrl);
+        
+        // Additional validation after loading
+        if (!wavesurfer.getDuration() && !abortController.signal.aborted) {
+          throw new Error('Invalid audio duration');
+        }
+      } catch (err) {
+        if (abortController.signal.aborted) return;
+        
+        console.error('Error loading audio:', err);
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`Retrying audio load (attempt ${retryCount}/${MAX_RETRIES})...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          await loadAudio(wavesurfer);
+        } else {
+          setError('Error loading audio');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeWaveSurfer();
+
+    return () => {
+      abortController.abort();
+      cleanup();
+    };
+  }, [audioUrl, emotion, onReady, onPlay, onPause]);
 
   const handleClick = () => {
     if (!wavesurferRef.current || isLoading || error) return;
