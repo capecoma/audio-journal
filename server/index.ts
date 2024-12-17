@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import cors from "cors";
 
 // Verify environment variables
 if (!process.env.DATABASE_URL) {
@@ -8,6 +9,14 @@ if (!process.env.DATABASE_URL) {
 }
 
 const app = express();
+
+// Configure CORS for Replit's environment
+app.use(cors({
+  origin: true, // Allow any origin
+  credentials: true, // Allow credentials
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Body parsing middleware - must be before auth setup
 app.use(express.json());
