@@ -1,8 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Volume2, VolumeX, FileText } from 'lucide-react';
+import { Volume2, VolumeX, FileText, Play, Pause } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
-import AudioWaveform from './AudioWaveform';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -36,47 +35,23 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     };
 
     const handleLoadedMetadata = () => {
-      console.log('Metadata loaded, audio duration:', audio.duration);
-      // Only update from audio element if we don't have a valid prop duration
-      if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-        console.log('Updating duration from audio element:', audio.duration);
-        setAudioDuration(audio.duration);
-      }
-    };
-
-    const handleDurationChange = () => {
-      console.log('Duration changed, new duration:', audio.duration);
-      if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-        console.log('Updating duration on change:', audio.duration);
+      if (!isNaN(audio.duration) && audio.duration > 0) {
         setAudioDuration(audio.duration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      // Use the current audioDuration state instead of potentially stale prop
       setCurrentTime(audioDuration);
     };
 
-    // Reset states when audio source changes
-    setCurrentTime(0);
-    setIsPlaying(false);
-
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
-
-    // Force metadata loading
-    if (audio.readyState === 0) {
-      console.log('Loading audio metadata...');
-      audio.load();
-    }
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
     };
   }, [audioUrl, duration, audioDuration]);
@@ -108,13 +83,6 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     setIsMuted(!isMuted);
   };
 
-  // Update duration when prop changes
-  useEffect(() => {
-    if (duration && duration > 0) {
-      setAudioDuration(duration);
-    }
-  }, [duration]);
-
   const formatTime = (time: number | undefined) => {
     if (typeof time !== 'number' || isNaN(time) || !isFinite(time) || time < 0) {
       return '0:00';
@@ -141,27 +109,38 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   }, [transcript]);
 
   return (
-    <div className="w-full space-y-4">
-      <AudioWaveform 
-        audioUrl={audioUrl}
-        emotion={emotion}
-        onReady={() => {
-          const audio = audioRef.current;
-          if (audio && !isNaN(audio.duration) && audio.duration > 0) {
-            setAudioDuration(audio.duration);
-          }
-        }}
-        onPlay={() => {
-          setIsPlaying(true);
-          audioRef.current?.play();
-        }}
-        onPause={() => {
-          setIsPlaying(false);
-          audioRef.current?.pause();
-        }}
-      />
+    <div className="w-full space-y-4 p-4 rounded-lg border bg-card">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={togglePlayPause}
+          className="h-10 w-10"
+        >
+          {isPlaying ? (
+            <Pause className="h-6 w-6" />
+          ) : (
+            <Play className="h-6 w-6" />
+          )}
+        </Button>
+        
+        <div className="flex-1">
+          <Slider
+            value={[currentTime]}
+            min={0}
+            max={audioDuration || 100}
+            step={0.1}
+            onValueChange={([value]) => {
+              if (audioRef.current) {
+                audioRef.current.currentTime = value;
+                setCurrentTime(value);
+              }
+            }}
+          />
+        </div>
+      </div>
       
-      <div className="flex items-center gap-2 px-4">
+      <div className="flex items-center gap-2">
         <div className="text-sm text-muted-foreground flex-1">
           {formatTime(currentTime)} / {formatTime(audioDuration)}
         </div>
@@ -203,13 +182,8 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
         ref={audioRef} 
         src={audioUrl}
         preload="metadata"
-        onLoadedData={(e) => {
-          const audio = e.currentTarget;
-          if (!isNaN(audio.duration) && audio.duration > 0) {
-            setAudioDuration(audio.duration);
-          }
-        }}
-        className="hidden" 
+        onError={(e) => console.error('Audio error:', e)}
+        className="hidden"
       />
     </div>
   );
