@@ -161,12 +161,16 @@ export function registerRoutes(app: Express): Server {
       await db.insert(summaries)
         .values({
           userId: user.id,
-          date: today,
+          date: today.toISOString().split('T')[0], // Convert to YYYY-MM-DD format
           highlightText: summaryText,
         })
         .onConflictDoUpdate({
           target: "summaries_date_user_idx",
           set: { highlightText: summaryText },
+          where: and(
+            eq(summaries.userId, user.id),
+            eq(summaries.date, today.toISOString().split('T')[0])
+          )
         });
 
       res.json(entry);
