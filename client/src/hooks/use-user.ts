@@ -17,13 +17,24 @@ async function handleRequest(
     const response = await fetch(url, {
       method,
       headers: {
-        "Content-Type": "application/json",
+        ...(body && { "Content-Type": "application/json" }),
       },
       body: body ? JSON.stringify(body) : undefined,
       credentials: "include",
     });
 
-    const data = await response.json();
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error("Failed to parse JSON response:", e);
+        return { ok: false, message: "Invalid server response" };
+      }
+    } else {
+      data = { message: await response.text() };
+    }
 
     if (!response.ok) {
       return { 
@@ -34,7 +45,8 @@ async function handleRequest(
 
     return { ok: true };
   } catch (e: any) {
-    return { ok: false, message: e.toString() };
+    console.error("Request failed:", e);
+    return { ok: false, message: "Failed to connect to server" };
   }
 }
 
