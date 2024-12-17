@@ -40,8 +40,12 @@ export class DatabaseBackup {
       const password = databaseUrl.password;
       const user = databaseUrl.username;
       const host = databaseUrl.hostname;
-      const port = databaseUrl.port;
+      const port = databaseUrl.port || '5432'; // Default to 5432 if port is not specified
       const database = databaseUrl.pathname.slice(1); // Remove leading '/'
+
+      if (!port || isNaN(parseInt(port))) {
+        throw new Error('Invalid port number in DATABASE_URL');
+      }
 
       // Set environment variables for pg_dump
       const env = {
@@ -102,8 +106,12 @@ export class DatabaseBackup {
       const password = databaseUrl.password;
       const user = databaseUrl.username;
       const host = databaseUrl.hostname;
-      const port = databaseUrl.port;
+      const port = databaseUrl.port || '5432'; // Default to 5432 if port is not specified
       const database = databaseUrl.pathname.slice(1);
+
+      if (!port || isNaN(parseInt(port))) {
+        throw new Error('Invalid port number in DATABASE_URL');
+      }
 
       // Set environment variables for pg_restore
       const env = {
