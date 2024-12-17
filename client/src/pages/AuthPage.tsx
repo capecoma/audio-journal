@@ -42,13 +42,12 @@ export default function AuthPage() {
 
     try {
       const result = await (activeTab === "login" ? login(data) : register(data));
-      console.log("API Response:", result);
-
+      
       if (!result.ok) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: result.message,
+          description: result.message || "Authentication failed",
         });
         return;
       }
@@ -57,15 +56,16 @@ export default function AuthPage() {
         title: "Success",
         description: `${activeTab === "login" ? "Logged in" : "Registered"} successfully`,
       });
+
+      // Force a page reload to update authentication state
+      window.location.reload();
     } catch (error: any) {
-      console.log("Debug: API call failed", error);
+      console.error("Authentication error:", error);
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message || "An unexpected error occurred",
       });
-    } finally {
-      console.log("=== End Form Submission Debug ===");
     }
   }
 
