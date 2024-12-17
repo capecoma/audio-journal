@@ -1,33 +1,15 @@
 import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Home, Loader2 } from "lucide-react";
+import { AlertCircle, Home } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Journal from "./pages/Journal";
-import AdminDashboard from "./pages/AdminDashboard";
-import AuthPage from "./pages/AuthPage";
-import { useUser } from "@/hooks/use-user";
 
 function App() {
-  const { user, isLoading } = useUser();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-border" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthPage />;
-  }
-
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
-      <Route path="/admin" component={AdminDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

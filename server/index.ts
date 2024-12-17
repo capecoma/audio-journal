@@ -9,27 +9,14 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 
-// Body parsing middleware must come first
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Debug middleware for parsed body
-app.use((req, res, next) => {
-  if (req.path === '/api/register') {
-    console.log('Request body:', {
-      type: typeof req.body,
-      content: JSON.stringify(req.body, null, 2),
-      contentType: req.get('content-type')
-    });
-  }
-  next();
-});
 
 // Security middlewares
 import { apiLimiter, securityHeaders } from './middleware/security';
 app.use(securityHeaders);
 app.use('/api', apiLimiter);
-
 
 // Request logging middleware
 app.use((req, res, next) => {

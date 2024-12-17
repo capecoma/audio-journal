@@ -1,49 +1,17 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries, tags, entryTags, users } from "@db/schema";
-import { eq, desc, and, lt, isNull } from "drizzle-orm";
+import { entries, summaries, tags, entryTags } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 import { validateFileUpload, encryptData, decryptData } from './middleware/security';
-import { setupAuth } from './auth';
-
-// Authentication middleware
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  next();
-}
-
-// Admin check middleware
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-  
-  if (!req.user?.isAdmin) {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-  next();
-}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
-  
-  // Setup authentication
-  setupAuth(app);
-
-  // Apply authentication to all API routes except login/register
-  app.use('/api', (req, res, next) => {
-    if (req.path.match(/^\/api\/(login|register|user)$/)) {
-      return next();
-    }
-    requireAuth(req, res, next);
-  });
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -185,68 +153,42 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Usage analytics endpoint
-  // Admin analytics dashboard endpoint
-  app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
+  // System analytics endpoint
+  app.get("/api/analytics", async (req, res) => {
     try {
-      // Get all users and their usage statistics
-      const allUsers = await db.query.users.findMany();
-      
-      const usersWithStats = await Promise.all(allUsers.map(async (user) => {
-        // Get user's entries
-        const userEntries = await db.query.entries.findMany({
-          where: eq(entries.userId, user.id),
-          with: {
-            entryTags: {
-              with: {
-                tag: true
-              }
+      // Get all entries with their tags
+      const allEntries = await db.query.entries.findMany({
+        with: {
+          entryTags: {
+            with: {
+              tag: true
             }
           }
-        });
+        },
+        orderBy: [desc(entries.createdAt)]
+      });
 
-        // Get user's summaries
-        const userSummaries = await db.query.summaries.findMany({
-          where: eq(summaries.userId, user.id)
-        });
-
-        // Calculate user statistics
-        const totalDuration = userEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
-        const avgEntryLength = userEntries.length ? totalDuration / userEntries.length : 0;
-        const uniqueTags = new Set(userEntries.flatMap(entry => entry.entryTags?.map(et => et.tag?.name) || [])).size;
-
-        return {
-          id: user.id,
-          username: user.username,
-          createdAt: user.createdAt,
-          stats: {
-            totalEntries: userEntries.length,
-            totalDuration: totalDuration,
-            averageEntryLength: avgEntryLength,
-            totalSummaries: userSummaries.length,
-            uniqueTags: uniqueTags,
-            lastActive: userEntries.length ? userEntries[0].createdAt : user.createdAt,
-          }
-        };
-      }));
+      // Get all summaries
+      const allSummaries = await db.query.summaries.findMany({
+        orderBy: [desc(summaries.date)]
+      });
 
       // Calculate system-wide statistics
+      const totalDuration = allEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
+      const avgEntryLength = allEntries.length ? totalDuration / allEntries.length : 0;
+      const uniqueTags = new Set(allEntries.flatMap(entry => entry.entryTags?.map(et => et.tag?.name) || [])).size;
+
+      // System statistics
       const systemStats = {
-        totalUsers: allUsers.length,
-        totalEntries: usersWithStats.reduce((sum, user) => sum + user.stats.totalEntries, 0),
-        totalDuration: usersWithStats.reduce((sum, user) => sum + user.stats.totalDuration, 0),
-        averageEntriesPerUser: usersWithStats.reduce((sum, user) => sum + user.stats.totalEntries, 0) / allUsers.length,
-        activeUsersLast7Days: usersWithStats.filter(user => {
-          const lastActive = new Date(user.stats.lastActive);
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          return lastActive >= sevenDaysAgo;
-        }).length
+        totalEntries: allEntries.length,
+        totalDuration: totalDuration,
+        averageEntryLength: avgEntryLength,
+        totalSummaries: allSummaries.length,
+        uniqueTags: uniqueTags,
+        lastActive: allEntries.length ? allEntries[0].createdAt : new Date().toISOString()
       };
 
-      res.json({
-        users: usersWithStats,
-        systemStats
-      });
+      res.json({ systemStats });
       
       // Fetch entries for the user
       const userEntries = await db.query.entries.findMany({
