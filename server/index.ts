@@ -10,37 +10,10 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 
-// Trust Replit's proxy
-app.set('trust proxy', true);
-
-// Configure CORS and security headers for Replit's environment
-app.use(cors({
-  origin: [/\.replit\.dev$/, /\.replit\.com$/],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-
-// Add security headers to allow iframe embedding
+// Basic security headers
 app.use((req, res, next) => {
-  // Allow embedding in Replit
-  res.setHeader('X-Frame-Options', 'ALLOW-FROM https://*.replit.dev https://*.replit.com');
-  
-  // Content Security Policy
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "frame-ancestors 'self' https://*.replit.dev https://*.replit.com;" +
-    "img-src 'self' data: blob: https:; " +
-    "media-src 'self' data: blob: https:;"
-  );
-  
-  // Additional security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  
   next();
 });
 
