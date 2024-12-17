@@ -5,15 +5,28 @@ import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 
 const authSchema = z.object({
-  username: z.string().min(1, "Username is required").min(3, "Username must be at least 3 characters"),
-  password: z.string().min(1, "Password is required").min(6, "Password must be at least 6 characters"),
+  username: z
+    .string()
+    .min(1, "Username is required")
+    .min(3, "Username must be at least 3 characters"),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .min(6, "Password must be at least 6 characters"),
 });
 
 type AuthForm = z.infer<typeof authSchema>;
@@ -22,6 +35,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   const { login, register } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   const form = useForm<AuthForm>({
     resolver: zodResolver(authSchema),
@@ -31,21 +45,22 @@ export default function AuthPage() {
     },
   });
 
-  const onSubmit = async (formData: AuthForm, action: "login" | "register") => {
+  const onSubmit = async (formData: AuthForm) => {
     try {
       setIsSubmitting(true);
       
-      // Clear previous errors
+      // Clear previous form errors
       form.clearErrors();
 
-      const result = await (action === "login" ? login(formData) : register(formData));
+      console.log(`Submitting ${activeTab} with data:`, formData);
+
+      const result = await (activeTab === "login" ? login(formData) : register(formData));
       
       if (!result.ok) {
-        const errorMessage = result.message || "An unexpected error occurred";
         toast({
           variant: "destructive",
-          title: `${action === "login" ? "Login" : "Registration"} failed`,
-          description: errorMessage
+          title: `${activeTab === "login" ? "Login" : "Registration"} failed`,
+          description: result.message || "An unexpected error occurred",
         });
         return;
       }
@@ -54,14 +69,15 @@ export default function AuthPage() {
       form.reset();
 
       toast({
-        title: `${action === "login" ? "Login" : "Registration"} successful`,
+        title: `${activeTab === "login" ? "Login" : "Registration"} successful`,
         description: `Welcome ${formData.username}!`,
       });
     } catch (error: any) {
+      console.error("Form submission error:", error);
       toast({
         variant: "destructive",
-        title: `${action === "login" ? "Login" : "Registration"} failed`,
-        description: error.message,
+        title: `${activeTab === "login" ? "Login" : "Registration"} failed`,
+        description: error.message || "An unexpected error occurred",
       });
     } finally {
       setIsSubmitting(false);
@@ -75,14 +91,14 @@ export default function AuthPage() {
           <CardTitle className="text-2xl text-center">Audio Journal</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "register")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
             <TabsContent value="login">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((data) => onSubmit(data, "login"))} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="username"
@@ -90,7 +106,10 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input 
+                            placeholder="Enter your username"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -103,7 +122,11 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password"
+                            placeholder="Enter your password"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -121,7 +144,7 @@ export default function AuthPage() {
             </TabsContent>
             <TabsContent value="register">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((data) => onSubmit(data, "register"))} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="username"
@@ -129,7 +152,10 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input 
+                            placeholder="Choose a username"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -142,7 +168,11 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password"
+                            placeholder="Choose a password"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
