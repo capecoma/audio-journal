@@ -6,10 +6,14 @@ import { eq, desc } from "drizzle-orm";
 import { transcribeAudio, generateTags } from "./ai";
 import multer from "multer";
 import { validateFileUpload, encryptData, decryptData } from './middleware/security';
+import { setupAuth } from './auth';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Setup authentication routes and middleware
+  setupAuth(app);
+
   // Get all entries
   app.get("/api/entries", async (req, res) => {
     try {

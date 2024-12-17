@@ -1,8 +1,24 @@
 import { Switch, Route } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import AuthPage from "./pages/AuthPage";
+import { useUser } from "./hooks/use-user";
 
 function App() {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-border" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <Switch>
       {/* Add your routes here */}

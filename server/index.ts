@@ -44,6 +44,21 @@ app.use((req, res, next) => {
   next();
 });
 
+// Debug middleware for API requests
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log('Incoming request:', {
+      method: req.method,
+      path: req.path,
+      contentType: req.headers['content-type'],
+      body: req.body,
+      query: req.query,
+      params: req.params
+    });
+  }
+  next();
+});
+
 // Request logging middleware for debugging
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
