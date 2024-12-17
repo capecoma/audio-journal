@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags } from "@db/schema";
@@ -6,15 +6,27 @@ import { eq, desc } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
 import { validateFileUpload, encryptData, decryptData } from './middleware/security';
+import { setupAuth } from './auth';
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Authentication middleware
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+}
 
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
 
+  // Setup authentication
+  setupAuth(app);
+
   // Get entries for the current user with optional search
-  app.get("/api/entries", async (req, res) => {
+  app.get("/api/entries", requireAuth, async (req: Request, res: Response) => {
     try {
       const { search } = req.query;
       const userEntries = await db.query.entries.findMany({
@@ -26,9 +38,13 @@ export function registerRoutes(app: Express): Server {
             }
           }
         },
-        where: search && typeof search === 'string' 
-          ? (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`)
-          : undefined
+        where: (entries, { and, eq, ilike }) => {
+          const conditions = [eq(entries.userId, req.user!.id)];
+          if (search && typeof search === 'string') {
+            conditions.push(ilike(entries.transcript!, `%${search}%`));
+          }
+          return and(...conditions);
+        }
       });
       res.json(userEntries);
     } catch (error) {

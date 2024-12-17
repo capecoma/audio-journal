@@ -1,10 +1,19 @@
-import { pgTable, text, serial, integer, timestamp, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  password: text("password").notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   audioUrl: text("audio_url").notNull(),
   transcript: text("transcript"),
   duration: integer("duration"),
@@ -13,6 +22,7 @@ export const entries = pgTable("entries", {
 
 export const tags = pgTable("tags", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
@@ -24,6 +34,7 @@ export const entryTags = pgTable("entry_tags", {
 
 export const summaries = pgTable("summaries", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   date: date("date").notNull(),
   highlightText: text("highlight_text").notNull(),
   createdAt: timestamp("created_at").defaultNow()
@@ -64,3 +75,9 @@ export const insertSummarySchema = createInsertSchema(summaries);
 export const selectSummarySchema = createSelectSchema(summaries);
 export type Summary = typeof summaries.$inferSelect;
 export type NewSummary = typeof summaries.$inferInsert;
+
+// User schemas
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
