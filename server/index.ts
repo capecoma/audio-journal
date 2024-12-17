@@ -9,14 +9,22 @@ if (!process.env.DATABASE_URL) {
 
 const app = express();
 
-// Body parsing middleware
+// Body parsing middleware - must be before auth setup
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 
 // Security middlewares
 import { apiLimiter, securityHeaders } from './middleware/security';
 app.use(securityHeaders);
 app.use('/api', apiLimiter);
+
+// Request logging middleware
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log('Request body:', req.body);
+  }
+  next();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {

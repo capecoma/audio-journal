@@ -100,19 +100,20 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      // Ensure request body is properly formatted
-      if (!req.is('application/json')) {
+      if (!req.body || !req.body.username || !req.body.password) {
         return res.status(400).json({
-          message: "Content-Type must be application/json"
+          ok: false,
+          message: "Username and password are required"
         });
       }
 
-      console.log('Request body:', req.body); // Debug log
-
       // Parse and validate the request body
-      const result = insertUserSchema.safeParse(req.body);
+      const result = insertUserSchema.safeParse({
+        username: req.body.username,
+        password: req.body.password
+      });
+      
       if (!result.success) {
-        console.log('Validation error:', result.error.issues);
         return res.status(400).json({
           ok: false,
           message: result.error.issues.map(i => i.message).join(", ")
