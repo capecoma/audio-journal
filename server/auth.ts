@@ -175,50 +175,44 @@ export function setupAuth(app: Express) {
   });
 
   // Google OAuth routes
-  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
-    passport.use(new GoogleStrategy(
-      {
-        clientID: GOOGLE_CLIENT_ID,
-        clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: "/auth/google/callback",
-      },
-      async function verify(
-        _accessToken: string,
-        _refreshToken: string,
-        profile: { emails?: { value: string }[], displayName?: string },
-        done: (error: any, user?: any) => void
-      ) {
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          callbackURL: "/auth/google/callback",
+        },
+        async function verify(
+          accessToken: string,
+          refreshToken: string,
+          profile: { emails?: { value: string }[] },
+          done: (error: any, user?: any) => void
+        ) {
           try {
             if (!profile.emails || profile.emails.length === 0) {
               return done(new Error("No email provided from Google"));
             }
 
             const email = profile.emails[0].value;
-            const username = profile.displayName || email.split('@')[0];
 
             // Check if user exists
             let [user] = await db
               .select()
               .from(users)
-              .where(eq(users.username, username))
+              .where(eq(users.username, email))
               .limit(1);
 
             if (!user) {
               // Create new user if doesn't exist
-              console.log(`Creating new user for Google OAuth: ${username}`);
               const hashedPassword = await crypto.hash(randomBytes(32).toString("hex"));
               [user] = await db
                 .insert(users)
                 .values({
-                  username: username,
+                  username: email,
                   password: hashedPassword, // random password since we're using OAuth
                 })
                 .returning();
-              
-              console.log(`Successfully created user: ${user.username}`);
             }
 
             return done(null, user);
@@ -239,11 +233,10 @@ export function setupAuth(app: Express) {
 
     app.get(
       "/auth/google/callback",
-      passport.authenticate("google", { failureRedirect: "/" }),
-      (req, res) => {
-        // Successful authentication
-        res.redirect("/");
-      }
+      passport.authenticate("google", {
+        failureRedirect: "/login",
+        successRedirect: "/",
+      })
     );
   }
 

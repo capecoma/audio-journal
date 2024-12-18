@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries, tags, entryTags, users, type SelectUser } from "@db/schema";
+import { entries, summaries, tags, entryTags, type SelectUser } from "@db/schema";
 import { eq, desc, and, sql, ilike } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
@@ -26,11 +26,6 @@ export function registerRoutes(app: Express): Server {
     }
     next();
   }
-
-  // Add non-authenticated routes here
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
-  });
 
   // User context middleware uses authenticated user
   function addUserContext(req: Request, res: Response, next: NextFunction) {
