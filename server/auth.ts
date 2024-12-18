@@ -1,12 +1,11 @@
 import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { type Express } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, type SelectUser } from "@db/schema";
+import { users, insertUserSchema, type User } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -29,10 +28,10 @@ const crypto = {
   },
 };
 
-// extend express user object with our schema
+// Extend express user object with our schema
 declare global {
   namespace Express {
-    interface User extends SelectUser {}
+    interface User extends User {}
   }
 }
 
@@ -173,72 +172,6 @@ export function setupAuth(app: Express) {
       res.json({ message: "Logged out successfully" });
     });
   });
-
-  // Google OAuth routes
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    passport.use(
-      new GoogleStrategy(
-        {
-          clientID: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          callbackURL: "/auth/google/callback",
-        },
-        async function verify(
-          accessToken: string,
-          refreshToken: string,
-          profile: { emails?: { value: string }[] },
-          done: (error: any, user?: any) => void
-        ) {
-          try {
-            if (!profile.emails || profile.emails.length === 0) {
-              return done(new Error("No email provided from Google"));
-            }
-
-            const email = profile.emails[0].value;
-
-            // Check if user exists
-            let [user] = await db
-              .select()
-              .from(users)
-              .where(eq(users.username, email))
-              .limit(1);
-
-            if (!user) {
-              // Create new user if doesn't exist
-              const hashedPassword = await crypto.hash(randomBytes(32).toString("hex"));
-              [user] = await db
-                .insert(users)
-                .values({
-                  username: email,
-                  password: hashedPassword, // random password since we're using OAuth
-                })
-                .returning();
-            }
-
-            return done(null, user);
-          } catch (err) {
-            console.error("Google OAuth error:", err);
-            return done(err);
-          }
-        }
-      )
-    );
-
-    app.get(
-      "/auth/google",
-      passport.authenticate("google", {
-        scope: ["profile", "email"],
-      })
-    );
-
-    app.get(
-      "/auth/google/callback",
-      passport.authenticate("google", {
-        failureRedirect: "/login",
-        successRedirect: "/",
-      })
-    );
-  }
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) {
