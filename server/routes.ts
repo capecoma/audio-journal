@@ -1,33 +1,31 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags, users } from "@db/schema";
-import { eq, desc, and, sql, ilike } from "drizzle-orm";
+import { eq, desc, and, lt, isNull } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
+import { validateFileUpload, encryptData, decryptData } from './middleware/security';
+
+// Simple middleware for user context
+async function addUserContext(req: Request, res: Response, next: NextFunction) {
+  try {
+    req.app.locals.userId = 1; // TODO: Get from auth
+    next();
+  } catch (error) {
+    console.error('Error adding user context:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
-
-  // Set up authentication middleware and routes
-  setupAuth(app);
-
-  // Protect all API routes except auth routes
-  app.use('/api', (req, res, next) => {
-    if (req.path.startsWith('/login') || req.path.startsWith('/register') || req.path.startsWith('/user')) {
-      return next();
-    }
-
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
-    next();
-  });
-
-  const upload = multer({ storage: multer.memoryStorage() });
+  
+  // Apply user context middleware to all API routes
+  app.use('/api', addUserContext);
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -42,7 +40,7 @@ export function registerRoutes(app: Express): Server {
             }
           }
         },
-        where: search && typeof search === 'string'
+        where: search && typeof search === 'string' 
           ? (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`)
           : undefined
       });
@@ -54,14 +52,14 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Upload new entry
-  app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
+  app.post("/api/entries/upload", upload.single("audio"), validateFileUpload, async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
       const audioBuffer = req.file.buffer;
-
+      
       // Calculate approximate duration based on audio file size and bitrate
       // Using 32kbps as our fixed bitrate (32000 bits per second)
       const bitRate = 32000; // bits per second
@@ -79,57 +77,40 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: error.message });
       }
 
-      // Verify user exists before creating entry
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, req.user?.id) // Assuming req.user is provided by auth middleware
-      });
-
-      if (!user) {
-        return res.status(400).json({ error: "User not found" });
-      }
-
       // Create entry
       const [entry] = await db.insert(entries).values({
-        audioUrl,
+        audioUrl: encryptData(audioUrl), // Encrypt sensitive data
         transcript,
         duration,
-        userId: user.id,
+        userId: 1, // TODO: Get from auth
       }).returning();
 
       // Generate and save tags
       if (transcript) {
         try {
           const generatedTags = await generateTags(transcript);
-
+          
           for (const tagName of generatedTags) {
             // First try to find if the tag exists
             let existingTag = await db.query.tags.findFirst({
-              where: and(
+              where: (tags, { and, eq }) => and(
                 eq(tags.name, tagName),
-                eq(tags.userId, user.id)
+                eq(tags.userId, 1)
               )
             });
 
             // If tag doesn't exist, create it
             if (!existingTag) {
               const [newTag] = await db.insert(tags)
-                .values({
-                  name: tagName,
-                  userId: user.id
-                })
+                .values({ name: tagName, userId: 1 })
                 .returning();
               existingTag = newTag;
             }
 
             // Associate tag with entry
-            if (existingTag) {
-              await db.insert(entryTags)
-                .values({
-                  entryId: entry.id,
-                  tagId: existingTag.id
-                })
-                .onConflictDoNothing();
-            }
+            await db.insert(entryTags)
+              .values({ entryId: entry.id, tagId: existingTag.id })
+              .onConflictDoNothing();
           }
         } catch (error) {
           console.error('Error generating tags:', error);
@@ -141,65 +122,32 @@ export function registerRoutes(app: Express): Server {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Get entries for today using date part comparison
       const todaysEntries = await db.query.entries.findMany({
-        where: and(
-          eq(entries.userId, user.id),
-          sql`DATE(${entries.createdAt}) = ${today.toISOString().split('T')[0]}`
-        ),
-        orderBy: [desc(entries.createdAt)]
+        where: eq(entries.userId, 1),
       });
 
-      console.log('Found entries for today:', todaysEntries.length);
+      const transcripts = todaysEntries.map(e => e.transcript).filter(Boolean);
+      const summaryText = await generateSummary(transcripts as string[]);
 
-      const transcripts = todaysEntries
-        .map(e => e.transcript)
-        .filter((t): t is string => t !== null);
+      // Update or create daily summary
+      await db.insert(summaries)
+        .values({
+          userId: 1,
+          date: today.toISOString(),
+          highlightText: summaryText,
+        })
+        .onConflictDoUpdate({
+          target: [summaries.userId, summaries.date],
+          set: { highlightText: summaryText },
+        });
 
-      console.log('Found transcripts:', transcripts.length);
+      // Decrypt audioUrl before sending response
+      const decryptedEntry = {
+        ...entry,
+        audioUrl: decryptData(entry.audioUrl),
+      };
 
-      if (transcripts.length > 0) {
-        try {
-          console.log('Generating summary for transcripts:', transcripts);
-          const summaryText = await generateSummary(transcripts);
-          console.log('Generated summary:', summaryText);
-
-          // Update or create daily summary
-          // Format the date consistently
-          const formattedDate = today.toISOString().split('T')[0];
-
-          // Try to find existing summary
-          const existingSummary = await db.query.summaries.findFirst({
-            where: and(
-              eq(summaries.userId, user.id),
-              eq(summaries.date, sql`${formattedDate}`)
-            )
-          });
-
-          if (existingSummary) {
-            // Update existing summary
-            await db
-              .update(summaries)
-              .set({ highlightText: summaryText })
-              .where(and(
-                eq(summaries.userId, user.id),
-                eq(summaries.date, sql`${formattedDate}`)
-              ));
-          } else {
-            // Insert new summary
-            await db.insert(summaries).values({
-              userId: user.id,
-              date: formattedDate,
-              highlightText: summaryText,
-            });
-          }
-        } catch (error) {
-          console.error('Error generating summary:', error);
-          // Continue with the entry creation even if summary generation fails
-        }
-      }
-
-      res.json(entry);
+      res.json(decryptedEntry);
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message || "Failed to process entry" });
@@ -209,117 +157,24 @@ export function registerRoutes(app: Express): Server {
   // Get daily summaries
   app.get("/api/summaries/daily", async (_req, res) => {
     try {
-      // Get user ID from context
-      const userId = _req.user?.id; // Assuming req.user is provided by auth middleware
-
-      // Get the last 7 days of summaries
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
       const userSummaries = await db.query.summaries.findMany({
-        where: and(
-          eq(summaries.userId, userId),
-          sql`${summaries.date} >= ${sevenDaysAgo.toISOString().split('T')[0]}`
-        ),
-        orderBy: [desc(summaries.date)],
+        orderBy: desc(summaries.date),
       });
-
-      // Format summaries for better display
-      const formattedSummaries = userSummaries.map(summary => ({
-        ...summary,
-        date: new Date(summary.date).toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        highlights: summary.highlightText.split('\n').filter(line => line.trim()),
-      }));
-
-      console.log('Found and formatted summaries:', formattedSummaries.length);
-      if (formattedSummaries.length > 0) {
-        console.log('Sample formatted summary:', formattedSummaries[0]);
-      }
-
-      res.json(formattedSummaries);
+      res.json(userSummaries);
     } catch (error) {
-      console.error('Error fetching daily summaries:', error);
       res.status(500).json({ error: "Failed to fetch summaries" });
     }
   });
 
-  // Analytics endpoint
+  // Usage analytics endpoint
   app.get("/api/analytics", async (_req, res) => {
     try {
-      const userId = _req.user?.id; // Assuming req.user is provided by auth middleware
-
-      // Get feature usage stats
-      // Get counts using SQL count aggregation
-      const [
-        recordingCount,
-        transcriptionCount,
-        summaryCount,
-        tagCount
-      ] = await Promise.all([
-        db.select({ count: sql<number>`count(*)` }).from(entries).then(res => Number(res[0].count)),
-        db.select({ count: sql<number>`count(*)` })
-          .from(entries)
-          .where(sql`transcript is not null`)
-          .then(res => Number(res[0].count)),
-        db.select({ count: sql<number>`count(*)` }).from(summaries).then(res => Number(res[0].count)),
-        db.select({ count: sql<number>`count(*)` }).from(tags).then(res => Number(res[0].count))
-      ]);
-
-      // Calculate daily stats for the last 14 days
-      const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-      const dailyEntries = await db.query.entries.findMany({
-        where: and(
-          eq(entries.userId, userId),
-          sql`${entries.createdAt} >= ${twoWeeksAgo.toISOString()}`
-        ),
-      });
-
-      // Group entries by date
-      const dailyStats = Array.from({ length: 14 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-
-        const count = dailyEntries.filter(entry => {
-          const entryDate = new Date(entry.createdAt);
-          entryDate.setHours(0, 0, 0, 0);
-          return entryDate.getTime() === date.getTime();
-        }).length;
-
-        return {
-          date: date.toISOString().split('T')[0],
-          count
-        };
-      }).reverse();
-
-      const featureUsage = [
-        { feature: "Recordings", count: recordingCount },
-        { feature: "Transcriptions", count: transcriptionCount },
-        { feature: "Daily Summaries", count: summaryCount },
-        { feature: "Tags", count: tagCount }
-      ];
-
-      res.json({
-        featureUsage,
-        dailyStats
-      });
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      res.status(500).json({ error: "Failed to fetch analytics" });
-    }
-  });
-
-  // Export entries endpoint
-  app.get("/api/entries/export", async (_req, res) => {
-    try {
-      const exportEntries = await db.query.entries.findMany({
+      // Get user ID from context
+      const userId = _req.app.locals.userId;
+      
+      // Fetch entries for the user
+      const userEntries = await db.query.entries.findMany({
+        where: eq(entries.userId, userId),
         orderBy: [desc(entries.createdAt)],
         with: {
           entryTags: {
@@ -330,11 +185,78 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      const exportData = exportEntries.map(entry => ({
+      // Get summary count for the user
+      const summaryCount = await db.query.summaries.findMany({
+        where: eq(summaries.userId, userId)
+      }).then(results => results.length);
+
+      // Calculate usage statistics
+      const featureUsage = [
+        { feature: "Total Recordings", count: userEntries.length },
+        { feature: "Transcribed Entries", count: userEntries.filter(entry => entry.transcript).length },
+        { feature: "Tagged Entries", count: userEntries.filter(entry => entry.entryTags?.length > 0).length },
+        { feature: "Daily Summaries", count: summaryCount },
+      ];
+
+      // Calculate daily usage trends
+      const dailyStats = userEntries.reduce((acc: Record<string, number>, entry) => {
+        if (entry.createdAt) {
+          const date = new Date(entry.createdAt).toLocaleDateString('en-US', { 
+            month: 'short',
+            day: 'numeric'
+          });
+          acc[date] = (acc[date] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Format response
+      const response = {
+        featureUsage,
+        dailyStats: Object.entries(dailyStats).map(([date, count]) => ({
+          date,
+          count
+        }))
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // Tag management endpoints
+  app.get("/api/tags", async (_req, res) => {
+    try {
+      const userTags = await db.query.tags.findMany({
+        orderBy: desc(tags.createdAt),
+      });
+      res.json(userTags);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tags" });
+    }
+  });
+
+  // Export entries endpoint
+  app.get("/api/entries/export", async (_req, res) => {
+    try {
+      const userEntries = await db.query.entries.findMany({
+        orderBy: [desc(entries.createdAt)],
+        with: {
+          entryTags: {
+            with: {
+              tag: true
+            }
+          }
+        }
+      });
+
+      const exportData = userEntries.map(entry => ({
         date: entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'No date',
         transcript: entry.transcript ?? 'No transcript available',
         tags: entry.entryTags?.map(et => et.tag.name) ?? [],
-        audioUrl: entry.audioUrl,
+        audioUrl: decryptData(entry.audioUrl), // Decrypt before export
         duration: entry.duration ?? 0
       }));
 

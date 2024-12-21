@@ -40,8 +40,9 @@ export default function AudioVisualizer({ mediaStream }: AudioVisualizerProps) {
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * height;
-        canvasCtx.fillStyle = `rgb(${barHeight + 100}, 30, 30)`;
+        canvasCtx.fillStyle = 'rgb(220, 30, 30)'; // Simple red color
         canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+
         x += barWidth + 1;
       }
     };
@@ -61,7 +62,7 @@ export default function AudioVisualizer({ mediaStream }: AudioVisualizerProps) {
       ref={canvasRef}
       width={200}
       height={60}
-      className="w-32 h-12 rounded-md bg-background"
+      className="w-32 h-12 rounded-md"
     />
   );
 }

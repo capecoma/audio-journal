@@ -1,35 +1,39 @@
 import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Home, Loader2 } from "lucide-react";
-import Dashboard from "./pages/Dashboard";
-import Journal from "./pages/Journal";
-import Analytics from "./pages/Analytics";
-import AuthPage from "./pages/AuthPage";
-import { useUser } from "@/hooks/use-user";
+import { AlertCircle, Home } from "lucide-react";
+import { Suspense, lazy } from "react";
+
+// Lazy load page components
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Journal = lazy(() => import("./pages/Journal"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+
+// Loading fallback component
+function LoadingPage() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <Card className="w-full max-w-md mx-4">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 function App() {
-  const { user, isLoading } = useUser();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthPage />;
-  }
-
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/journal" component={Journal} />
-      <Route path="/analytics" component={Analytics} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<LoadingPage />}>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/journal" component={Journal} />
+        <Route path="/analytics" component={Analytics} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
