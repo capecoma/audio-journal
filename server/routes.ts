@@ -1,50 +1,33 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { setupAuth } from "./auth";
 import { db } from "@db";
 import { entries, summaries, tags, entryTags, users } from "@db/schema";
-import { eq, desc, and, sql, ilike } from "drizzle-orm"; // Added ilike import
+import { eq, desc, and, sql, ilike } from "drizzle-orm";
 import { transcribeAudio, generateSummary, generateTags } from "./ai";
 import multer from "multer";
-
-// Simple middleware for user context
-async function addUserContext(req: Request, res: Response, next: NextFunction) {
-  try {
-    req.app.locals.userId = 1; // TODO: Get from auth
-    next();
-  } catch (error) {
-    console.error('Error adding user context:', error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-}
-
-const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
 
-  // Initialize development user if it doesn't exist
-  (async () => {
-    try {
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.id, 1)
-      });
+  // Set up authentication middleware and routes
+  setupAuth(app);
 
-      if (!existingUser) {
-        await db.insert(users).values({
-          id: 1, // Fixed ID for development
-          username: "dev_user",
-          password: "dev_password"
-        });
-        console.log("Development user created successfully");
-      }
-    } catch (error) {
-      console.error("Error initializing development user:", error);
+  // Protect all API routes except auth routes
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/login') || req.path.startsWith('/register') || req.path.startsWith('/user')) {
+      return next();
     }
-  })();
-  
-  // Apply user context middleware to all API routes
-  app.use('/api', addUserContext);
+
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    next();
+  });
+
+  const upload = multer({ storage: multer.memoryStorage() });
 
   // Get entries for the current user with optional search
   app.get("/api/entries", async (req, res) => {
@@ -59,7 +42,7 @@ export function registerRoutes(app: Express): Server {
             }
           }
         },
-        where: search && typeof search === 'string' 
+        where: search && typeof search === 'string'
           ? (entries, { ilike }) => ilike(entries.transcript!, `%${search}%`)
           : undefined
       });
@@ -78,7 +61,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const audioBuffer = req.file.buffer;
-      
+
       // Calculate approximate duration based on audio file size and bitrate
       // Using 32kbps as our fixed bitrate (32000 bits per second)
       const bitRate = 32000; // bits per second
@@ -98,7 +81,7 @@ export function registerRoutes(app: Express): Server {
 
       // Verify user exists before creating entry
       const user = await db.query.users.findFirst({
-        where: eq(users.id, req.app.locals.userId)
+        where: eq(users.id, req.user?.id) // Assuming req.user is provided by auth middleware
       });
 
       if (!user) {
@@ -117,7 +100,7 @@ export function registerRoutes(app: Express): Server {
       if (transcript) {
         try {
           const generatedTags = await generateTags(transcript);
-              
+
           for (const tagName of generatedTags) {
             // First try to find if the tag exists
             let existingTag = await db.query.tags.findFirst({
@@ -172,9 +155,9 @@ export function registerRoutes(app: Express): Server {
       const transcripts = todaysEntries
         .map(e => e.transcript)
         .filter((t): t is string => t !== null);
-      
+
       console.log('Found transcripts:', transcripts.length);
-      
+
       if (transcripts.length > 0) {
         try {
           console.log('Generating summary for transcripts:', transcripts);
@@ -184,7 +167,7 @@ export function registerRoutes(app: Express): Server {
           // Update or create daily summary
           // Format the date consistently
           const formattedDate = today.toISOString().split('T')[0];
-          
+
           // Try to find existing summary
           const existingSummary = await db.query.summaries.findFirst({
             where: and(
@@ -227,12 +210,12 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/summaries/daily", async (_req, res) => {
     try {
       // Get user ID from context
-      const userId = _req.app.locals.userId;
-      
+      const userId = _req.user?.id; // Assuming req.user is provided by auth middleware
+
       // Get the last 7 days of summaries
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
+
       const userSummaries = await db.query.summaries.findMany({
         where: and(
           eq(summaries.userId, userId),
@@ -240,7 +223,7 @@ export function registerRoutes(app: Express): Server {
         ),
         orderBy: [desc(summaries.date)],
       });
-      
+
       // Format summaries for better display
       const formattedSummaries = userSummaries.map(summary => ({
         ...summary,
@@ -252,12 +235,12 @@ export function registerRoutes(app: Express): Server {
         }),
         highlights: summary.highlightText.split('\n').filter(line => line.trim()),
       }));
-      
+
       console.log('Found and formatted summaries:', formattedSummaries.length);
       if (formattedSummaries.length > 0) {
         console.log('Sample formatted summary:', formattedSummaries[0]);
       }
-      
+
       res.json(formattedSummaries);
     } catch (error) {
       console.error('Error fetching daily summaries:', error);
@@ -268,7 +251,7 @@ export function registerRoutes(app: Express): Server {
   // Analytics endpoint
   app.get("/api/analytics", async (_req, res) => {
     try {
-      const userId = _req.app.locals.userId;
+      const userId = _req.user?.id; // Assuming req.user is provided by auth middleware
 
       // Get feature usage stats
       // Get counts using SQL count aggregation
@@ -303,7 +286,7 @@ export function registerRoutes(app: Express): Server {
         const date = new Date();
         date.setDate(date.getDate() - i);
         date.setHours(0, 0, 0, 0);
-        
+
         const count = dailyEntries.filter(entry => {
           const entryDate = new Date(entry.createdAt);
           entryDate.setHours(0, 0, 0, 0);
