@@ -12,15 +12,9 @@ if (!process.env.OPENAI_API_KEY) {
 
 const app = express();
 
-// Security middlewares
-import { apiLimiter, securityHeaders, sanitizeInput } from './middleware/security';
-app.use(securityHeaders);
-app.use('/api', apiLimiter);
-
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(sanitizeInput);
 
 // Request logging middleware
 app.use((req, res, next) => {
