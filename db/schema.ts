@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, date, primaryKey, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations, sql } from "drizzle-orm";
+import { z } from "zod";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -97,7 +98,10 @@ export const summariesRelations = relations(summaries, ({ one }) => ({
 }));
 
 // Schemas and Types
-export const insertUserSchema = createInsertSchema(users);
+export const insertUserSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
 export const selectUserSchema = createSelectSchema(users);
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

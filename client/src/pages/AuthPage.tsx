@@ -9,12 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { insertUserSchema } from "@db/schema";
 import { useUser } from "@/hooks/use-user";
+import type { z } from "zod";
+
+type FormData = z.infer<typeof insertUserSchema>;
 
 export default function AuthPage() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const { login, register } = useUser();
 
-  const form = useForm({
+  const form = useForm<FormData>({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
       username: "",
@@ -22,13 +25,15 @@ export default function AuthPage() {
     },
   });
 
-  const onSubmit = async (values: { username: string; password: string }) => {
+  const onSubmit = async (values: FormData) => {
     try {
       if (tab === "login") {
         await login(values);
       } else {
         await register(values);
       }
+      // Reset form after successful submission
+      form.reset();
     } catch (error) {
       console.error('Auth error:', error);
     }
@@ -66,7 +71,7 @@ export default function AuthPage() {
                   <TabsTrigger value="login">Login</TabsTrigger>
                   <TabsTrigger value="register">Register</TabsTrigger>
                 </TabsList>
-                <TabsContent value={tab}>
+                <TabsContent value={tab} className="mt-4">
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                       <FormField
@@ -76,7 +81,7 @@ export default function AuthPage() {
                           <FormItem>
                             <FormLabel>Username</FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input placeholder="Enter your username" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -89,14 +94,18 @@ export default function AuthPage() {
                           <FormItem>
                             <FormLabel>Password</FormLabel>
                             <FormControl>
-                              <Input type="password" {...field} />
+                              <Input type="password" placeholder="Enter your password" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <Button type="submit" className="w-full">
-                        {tab === "login" ? "Sign In" : "Sign Up"}
+                      <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                        {form.formState.isSubmitting ? (
+                          "Loading..."
+                        ) : (
+                          tab === "login" ? "Sign In" : "Sign Up"
+                        )}
                       </Button>
                     </form>
                   </Form>
