@@ -1,8 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { sql } from 'drizzle-orm';
-import db from '../db/connection';
+import { sql } from "@db";
 
 const app = express();
 
@@ -36,13 +35,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Add this before your routes
-app.get('/api/test-db', async (req, res) => {
+// Database test endpoint
+app.get('/api/test-db', async (_req, res) => {
   try {
-    // Simple query to test connection
-    const result = await db.execute(sql`SELECT NOW()`);
+    const result = await sql`SELECT NOW()`;
     res.json({ success: true, timestamp: result[0].now });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Database test failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -58,7 +56,7 @@ app.get('/api/test-db', async (req, res) => {
       serveStatic(app);
     }
 
-    const PORT = process.env.PORT || 5000;
+    const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on http://0.0.0.0:${PORT}`);
     });
