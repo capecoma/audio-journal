@@ -35,19 +35,27 @@ app.use((req, res, next) => {
   next();
 });
 
-// Database test endpoint
-app.get('/api/test-db', async (_req, res) => {
+// Database health check endpoint
+app.get('/api/health', async (_req, res) => {
   try {
-    const result = await sql`SELECT NOW()`;
-    res.json({ success: true, timestamp: result[0].now });
+    const result = await sql`SELECT 1 as health_check`;
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   } catch (error: any) {
-    console.error('Database test failed:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Database health check failed:', error);
+    res.status(500).json({ 
+      status: 'unhealthy', 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
 (async () => {
   try {
+    // Test database connection before starting server
+    await sql`SELECT 1`;
+    console.log('Database connection successful');
+
     const server = registerRoutes(app);
 
     if (app.get("env") === "development") {

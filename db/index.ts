@@ -9,13 +9,13 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Configure PostgreSQL client with connection pooling
-const client = postgres(process.env.DATABASE_URL, {
-  max: 10,
+const sql = postgres(process.env.DATABASE_URL, {
+  max: 1, // Single connection for simplicity
   idle_timeout: 20,
   connect_timeout: 10
 });
 
 // Initialize Drizzle with the configured client
-const db = drizzle(client, { schema });
+const db = drizzle(sql, { schema });
 
-export { db, client as sql };
+export { db, sql };
