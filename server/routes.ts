@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { entries, summaries } from "@db/schema";
+import { journalEntries, sentiments } from "@db/schema";
 import { desc } from "drizzle-orm";
 import multer from "multer";
 
@@ -15,22 +15,21 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/dashboard", async (_req, res) => {
     try {
       // Get total entries count
-      const entriesCount = await db.query.entries.findMany().then(results => results.length);
+      const entriesCount = await db.query.journalEntries.findMany().then(results => results.length);
 
       // Get recent entries
-      const recentEntries = await db.query.entries.findMany({
-        orderBy: [desc(entries.createdAt)],
+      const recentEntries = await db.query.journalEntries.findMany({
+        orderBy: [desc(journalEntries.createdAt)],
         limit: 5
       });
 
-      // Get recent summaries
-      const recentSummaries = await db.query.summaries.findMany({
-        orderBy: [desc(summaries.date)],
+      // Get recent sentiments
+      const recentSentiments = await db.query.sentiments.findMany({
+        orderBy: [desc(sentiments.createdAt)],
         limit: 5
       });
 
       // Calculate daily entry counts for the past week
-      const today = new Date();
       const dailyStats = recentEntries.reduce((acc: Record<string, number>, entry) => {
         if (entry.createdAt) {
           const date = new Date(entry.createdAt).toLocaleDateString('en-US', { 
@@ -46,7 +45,7 @@ export function registerRoutes(app: Express): Server {
       const dashboardData = {
         totalEntries: entriesCount,
         recentEntries,
-        recentSummaries,
+        recentSentiments,
         dailyStats: Object.entries(dailyStats).map(([date, count]) => ({
           date,
           count
@@ -63,8 +62,8 @@ export function registerRoutes(app: Express): Server {
   // Basic entries route
   app.get("/api/entries", async (_req, res) => {
     try {
-      const userEntries = await db.query.entries.findMany({
-        orderBy: [desc(entries.createdAt)]
+      const userEntries = await db.query.journalEntries.findMany({
+        orderBy: [desc(journalEntries.createdAt)]
       });
       res.json(userEntries);
     } catch (error) {
@@ -84,10 +83,12 @@ export function registerRoutes(app: Express): Server {
       const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
 
       // Create entry
-      const [entry] = await db.insert(entries).values({
+      const [entry] = await db.insert(journalEntries).values({
+        userId: 1, // TODO: Replace with actual user ID from auth
+        title: "Voice Journal Entry",
         audioUrl,
         duration: Math.round((audioBuffer.length * 8) / 32000), // Simple duration calculation
-        userId: 1,
+        isProcessed: false
       }).returning();
 
       res.json(entry);
