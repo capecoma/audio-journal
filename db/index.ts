@@ -1,5 +1,6 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from '@neondatabase/serverless';
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { neon, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,8 +9,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create a direct HTTP connection to Neon
-const sql = neon(process.env.DATABASE_URL);
+// Configure neon to use WebSocket
+neonConfig.webSocket = ws;
+
+// Create the SQL connection
+const sql = neon(process.env.DATABASE_URL!);
 
 // Create and export the database instance
-export const db = drizzle(sql, { schema });
+export const db = drizzle(sql);
+
+// Export sql for clean shutdown if needed
+export { sql };
