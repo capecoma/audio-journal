@@ -13,7 +13,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
-    "@neondatabase/serverless": "^0.10.4",
+    "@neondatabase/serverless": "^0.8.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -63,7 +63,7 @@
     "openai": "^4.76.3",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
-    "pg": "^8.13.1",
+    "pg": "^8.11.3",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -75,7 +75,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
-    "ws": "^8.18.0",
+    "ws": "^8.16.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

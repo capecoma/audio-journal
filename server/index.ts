@@ -1,14 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-
-// Verify environment variables
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set");
-}
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY must be set");
-}
+import { sql } from 'drizzle-orm';
+import db from '../db/connection';
 
 const app = express();
 
@@ -35,11 +29,6 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
       log(logLine);
     }
   });
@@ -47,27 +36,29 @@ app.use((req, res, next) => {
   next();
 });
 
-// Error handling middleware
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
-  const status = (err as any).status || (err as any).statusCode || 500;
-  const message = err.message || "Internal Server Error";
-  res.status(status).json({ message });
+// Add this before your routes
+app.get('/api/test-db', async (req, res) => {
+  try {
+    // Simple query to test connection
+    const result = await db.execute(sql`SELECT NOW()`);
+    res.json({ success: true, timestamp: result[0].now });
+  } catch (error) {
+    console.error('Database test failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 (async () => {
   try {
     const server = registerRoutes(app);
 
-    // Setup Vite or serve static files
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Start server
-    const PORT = 5000;
+    const PORT = process.env.PORT || 5000;
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on http://0.0.0.0:${PORT}`);
     });
