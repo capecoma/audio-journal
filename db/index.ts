@@ -1,22 +1,23 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { neon, neonConfig } from '@neondatabase/serverless';
-import ws from 'ws';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from 'postgres';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
 
-// Configure neon for WebSocket connections
-neonConfig.webSocketConstructor = ws;
-
-// Create the SQL connection
-const sql = neon(process.env.DATABASE_URL);
+// Create the PostgreSQL connection
+const client = postgres(process.env.DATABASE_URL, {
+  ssl: {
+    rejectUnauthorized: false
+  },
+  max: 20,
+  idle_timeout: 30,
+  connect_timeout: 10
+});
 
 // Create and export the database instance with schema
-export const db = drizzle(sql, { schema });
+export const db = drizzle(client, { schema });
 
-// Export sql for clean shutdown if needed
-export { sql };
+// Export client for clean shutdown if needed
+export { client };
