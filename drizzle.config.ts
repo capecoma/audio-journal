@@ -14,9 +14,6 @@ export default defineConfig({
   verbose: true,
   driver: "pg",
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
+    connectionString: process.env.DATABASE_URL
   }
 });
