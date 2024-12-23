@@ -1,6 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 import { config } from 'dotenv';
 
+// Load environment variables
+config();
+
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
@@ -8,10 +11,12 @@ if (!process.env.DATABASE_URL) {
 export default defineConfig({
   out: "./migrations",
   schema: "./db/schema.ts",
-  strict: true,
   verbose: true,
-  driver: 'pg',
+  driver: "pg",
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
   }
 });
