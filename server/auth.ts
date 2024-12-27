@@ -8,11 +8,10 @@ import { db } from "@db";
 import { eq } from "drizzle-orm";
 import type { User } from "@db/schema";
 
-// extend express user object with our schema
+// Extend express session to include our user type
 declare global {
   namespace Express {
-    // Use the imported User type instead of recursive reference
-    interface User extends Omit<User, keyof Express.User> {}
+    interface User extends Omit<User, "password"> {}
   }
 }
 
@@ -28,8 +27,8 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: "none",
-      secure: true
+      secure: true,
+      sameSite: "none"
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
@@ -44,12 +43,15 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Get the callback URL based on the environment
-  const callbackURL = app.get("env") === "production"
+  const callbackURL = process.env.NODE_ENV === "production"
     ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
     : "http://localhost:5000/auth/google/callback";
 
-  console.log('Setting up Google OAuth with callback URL:', callbackURL);
+  console.log('OAuth Configuration:', {
+    callbackURL,
+    clientID: process.env.GOOGLE_CLIENT_ID?.slice(0, 8) + '...',
+    environment: process.env.NODE_ENV || 'development'
+  });
 
   passport.use(
     new GoogleStrategy(
@@ -129,12 +131,13 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Google OAuth routes
   app.get(
     "/auth/google",
     passport.authenticate("google", { 
       scope: ["profile", "email"],
-      prompt: "select_account"
+      prompt: "select_account",
+      accessType: "offline",
+      includeGrantedScopes: true
     })
   );
 
