@@ -2,9 +2,28 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SiGoogle } from "react-icons/si";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const [, params] = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check for authentication errors
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+
+    if (error === 'auth_failed') {
+      toast({
+        title: "Authentication Failed",
+        description: "Unable to sign in with Google. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
