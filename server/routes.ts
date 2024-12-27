@@ -14,9 +14,28 @@ const inMemoryEntries: Array<{
   createdAt: string;
 }> = [];
 
+// Initialize with some test entries to persist between restarts
+const initializeTestEntries = () => {
+  if (inMemoryEntries.length === 0) {
+    const sampleEntry = {
+      id: Date.now(),
+      audioUrl: "data:audio/webm;base64,test",
+      transcript: "This is a test journal entry to ensure persistence.",
+      tags: ["test", "initialization"],
+      duration: 60,
+      isProcessed: true,
+      createdAt: new Date().toISOString(),
+    };
+    inMemoryEntries.push(sampleEntry);
+  }
+};
+
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
   app._router = undefined;
+
+  // Initialize test data
+  initializeTestEntries();
 
   // Basic entries route
   app.get("/api/entries", (_req, res) => {

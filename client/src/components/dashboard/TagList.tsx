@@ -1,24 +1,23 @@
 import { Badge } from "@/components/ui/badge";
-import type { SelectTag } from "@db/schema";
 
 interface TagListProps {
-  entryTags: SelectTag[];
+  tags: string[];
 }
 
-export default function TagList({ entryTags }: TagListProps) {
-  if (!entryTags.length) {
+export default function TagList({ tags }: TagListProps) {
+  if (!tags.length) {
     return null;
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {entryTags.map((tag) => (
+      {tags.map((tag, index) => (
         <Badge
-          key={tag.id}
+          key={index}
           variant="secondary"
           className="px-2.5 py-1 text-xs font-medium bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
         >
-          {tag.name}
+          {tag}
         </Badge>
       ))}
     </div>
