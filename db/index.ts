@@ -1,32 +1,35 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { neonConfig } from '@neondatabase/serverless';
-import ws from "ws";
+import { drizzle } from "drizzle-orm/pg-pool";
+import { Pool } from "pg";
 import * as schema from "@db/schema";
-import { sql } from "drizzle-orm";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+// Create a new connection pool using individual connection parameters
+const pool = new Pool({
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  password: process.env.PGPASSWORD,
+  port: parseInt(process.env.PGPORT || '5432', 10),
+  max: 10, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+  connectionTimeoutMillis: 2000, // How long to wait when connecting a new client
+});
 
-// Configure Neon to use WebSocket for serverless environment
-neonConfig.webSocketConstructor = ws;
-neonConfig.useSecureWebSocket = true;
-// Use password mode for pipelineTLS as true is not a valid value
-neonConfig.pipelineTLS = "password";
-neonConfig.pipelineConnect = true;
-
-// Initialize the database connection
-export const db = drizzle(process.env.DATABASE_URL, { schema });
+// Initialize drizzle with the connection pool
+export const db = drizzle(pool, { schema });
 
 // Add a health check function
 export async function checkDatabaseConnection(): Promise<boolean> {
+  let client;
   try {
-    const result = await db.execute(sql`SELECT 1 as check`);
-    return Array.isArray(result) && result.length > 0;
+    client = await pool.connect();
+    const result = await client.query('SELECT 1 as check');
+    return result.rows.length > 0;
   } catch (error) {
     console.error('Database health check failed:', error);
     return false;
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 }
