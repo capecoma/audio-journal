@@ -52,6 +52,7 @@ export function setupAuth(app: Express) {
     : 'http://localhost:5000';
 
   console.log('Configuring Google OAuth with callback URL:', `${host}/auth/google/callback`);
+  console.log('Using client ID:', process.env.GOOGLE_CLIENT_ID.substring(0, 8) + '...');
 
   // Configure Google Strategy with detailed error logging
   passport.use(
