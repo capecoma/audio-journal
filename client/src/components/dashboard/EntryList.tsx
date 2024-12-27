@@ -88,10 +88,10 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <div key={entry.id} className="p-6 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
-                    <div className="space-y-4">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                        <div className="space-y-1.5 min-w-0">
+                  <div key={entry.id} className="p-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+                        <div className="space-y-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium whitespace-nowrap">
                               {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
@@ -114,8 +114,8 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                       </div>
 
                       {entry.transcript && (
-                        <div className="space-y-3">
-                          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed break-words">
                             {entry.transcript}
                           </p>
                           {entry.tags && entry.tags.length > 0 && (
