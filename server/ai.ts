@@ -51,14 +51,15 @@ export async function generateTags(transcript: string | undefined): Promise<stri
       messages: [
         {
           role: "system",
-          content: "You are a text analysis expert. Generate 2-4 relevant tags for the given text. Focus on themes, emotions, or key topics mentioned. Return the tags as a JSON array of strings.",
+          content: "You are a text analysis expert. Generate 2-4 relevant tags for the given text. Focus on themes, emotions, or key topics mentioned. Return only the tags separated by commas, without any additional text.",
         },
         {
           role: "user",
           content: transcript,
         },
       ],
-      response_format: { type: "json_object" },
+      temperature: 0.7,
+      max_tokens: 50,
     });
 
     const content = response.choices[0].message.content;
@@ -67,20 +68,18 @@ export async function generateTags(transcript: string | undefined): Promise<stri
       return [];
     }
 
-    try {
-      const result = JSON.parse(content);
-      const tags = Array.isArray(result.tags) ? result.tags : [];
+    // Parse comma-separated tags
+    const tags = content
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
 
-      // Cache the result
-      if (tags.length > 0) {
-        cache.set(cacheKey, tags);
-      }
-
-      return tags;
-    } catch (parseError) {
-      console.error('Error parsing OpenAI response:', parseError);
-      return [];
+    // Cache the result
+    if (tags.length > 0) {
+      cache.set(cacheKey, tags);
     }
+
+    return tags;
   } catch (error) {
     console.error("Tag generation error:", error);
     // Return empty array instead of throwing to prevent app crashes
