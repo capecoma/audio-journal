@@ -3,36 +3,46 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
 import { format, startOfDay } from "date-fns";
-import { db } from "@db";
+import { db, checkDatabaseConnection } from "@db";
 import { entries, summaries } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Add health check endpoint
+  app.get("/api/health", async (_req, res) => {
+    const isConnected = await checkDatabaseConnection();
+    res.json({ status: isConnected ? "healthy" : "unhealthy" });
+  });
+
   // Basic entries route
   app.get("/api/entries", async (_req, res) => {
     try {
+      console.log('Attempting to fetch entries from database...');
       const allEntries = await db.query.entries.findMany({
         orderBy: [desc(entries.createdAt)]
       });
+      console.log(`Successfully fetched ${allEntries.length} entries`);
       res.json(allEntries);
     } catch (error) {
       console.error("Error fetching entries:", error);
-      res.status(500).json({ error: "Failed to fetch entries" });
+      res.status(500).json({ error: "Failed to fetch entries", details: error.message });
     }
   });
 
   // Get daily summaries route
   app.get("/api/summaries/daily", async (_req, res) => {
     try {
+      console.log('Attempting to fetch daily summaries...');
       const allSummaries = await db.query.summaries.findMany({
         orderBy: [desc(summaries.date)]
       });
+      console.log(`Successfully fetched ${allSummaries.length} summaries`);
       res.json(allSummaries);
     } catch (error) {
       console.error("Error fetching summaries:", error);
-      res.status(500).json({ error: "Failed to fetch summaries" });
+      res.status(500).json({ error: "Failed to fetch summaries", details: error.message });
     }
   });
 
@@ -96,7 +106,7 @@ export function registerRoutes(app: Express): Server {
         // Calculate average sentiment and collect all topics
         const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
         const averageSentiment = Math.round(
-          entriesWithAnalysis.reduce((acc, e) => acc + (e.aiAnalysis?.sentiment || 0), 0) / 
+          entriesWithAnalysis.reduce((acc, e) => acc + (e.aiAnalysis?.sentiment || 0), 0) /
           entriesWithAnalysis.length
         );
 
@@ -118,7 +128,7 @@ export function registerRoutes(app: Express): Server {
 
         if (existingSummary) {
           await db.update(summaries)
-            .set({ 
+            .set({
               highlightText: summaryText,
               sentimentScore: averageSentiment,
               topicAnalysis: topTopics,
