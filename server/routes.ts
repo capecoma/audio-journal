@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import { transcribeAudio, generateTags } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -36,7 +37,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Basic upload route
+  // Upload and transcribe route
   app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
     try {
       if (!req.file) {
@@ -46,19 +47,31 @@ export function registerRoutes(app: Express): Server {
       const audioBuffer = req.file.buffer;
       const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
 
-      // Return mock entry
-      const mockEntry = {
-        id: 1,
+      // Transcribe the audio
+      console.log('Starting transcription...');
+      const transcript = await transcribeAudio(audioBuffer);
+      console.log('Transcription completed');
+
+      // Generate tags for the transcript
+      console.log('Generating tags...');
+      const tags = await generateTags(transcript);
+      console.log('Tags generated:', tags);
+
+      // Create response with transcript and tags
+      const entry = {
+        id: Date.now(),
         title: "Voice Journal Entry",
         audioUrl,
+        transcript,
+        tags,
         duration: Math.round((audioBuffer.length * 8) / 32000), // Simple duration calculation
-        isProcessed: false,
+        isProcessed: true,
         createdAt: new Date().toISOString()
       };
 
-      res.json(mockEntry);
+      res.json(entry);
     } catch (error: any) {
-      console.error(error);
+      console.error('Error processing entry:', error);
       res.status(500).json({ error: error.message || "Failed to process entry" });
     }
   });
