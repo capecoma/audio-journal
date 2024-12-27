@@ -9,8 +9,12 @@ import { users } from "@db/schema";
 // Debug OAuth configuration before app setup
 function debugCredentials() {
   try {
-    const clientId = process.env.GOOGLE_CLIENT_ID || '';
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+    const rawClientId = process.env.GOOGLE_CLIENT_ID || '';
+    const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
+    // Clean credentials
+    const clientId = rawClientId.trim().replace(/\s+/g, '');
+    const clientSecret = rawClientSecret.trim().replace(/\s+/g, '');
 
     console.log('OAuth Configuration Debug:', {
       environment: {
@@ -41,13 +45,24 @@ function debugCredentials() {
         ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
         : "http://localhost:5000/auth/google/callback"
     });
+
+    // Update environment variables with cleaned values
+    process.env.GOOGLE_CLIENT_ID = clientId;
+    process.env.GOOGLE_CLIENT_SECRET = clientSecret;
+
   } catch (error) {
     console.error('Error while debugging OAuth configuration:', error);
+    throw error;
   }
 }
 
 // Debug OAuth configuration before app setup
-debugCredentials();
+try {
+  debugCredentials();
+} catch (error) {
+  console.error('Failed to validate OAuth credentials:', error);
+  process.exit(1);
+}
 
 const app = express();
 
@@ -115,7 +130,8 @@ app.use((req, res, next) => {
       res.json({ status: 'ok' });
     });
 
-    const PORT = Number(process.env.PORT || 5000);
+    const PORT = 5000;
+    const HOST = '0.0.0.0';
     const server = registerRoutes(app);
 
     // Error handling middleware should be after routes
@@ -136,8 +152,8 @@ app.use((req, res, next) => {
     }
 
     // Start the server with detailed logging and error handling
-    const httpServer = server.listen(PORT, "0.0.0.0", () => {
-      log(`Server is running on port ${PORT}`);
+    const httpServer = server.listen(PORT, HOST, () => {
+      log(`Server is running on http://${HOST}:${PORT}`);
       log(`Environment: ${app.get("env")}`);
       log(`Auth callback URL: ${process.env.NODE_ENV === "production" 
         ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`

@@ -30,9 +30,9 @@ function validateAndCleanOAuthCredentials() {
     throw new Error("Missing OAuth credentials. Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
   }
 
-  // Clean credentials
-  const clientId = rawClientId.trim();
-  const clientSecret = rawClientSecret.trim();
+  // Clean credentials - aggressively trim and remove any whitespace
+  const clientId = rawClientId.trim().replace(/\s+/g, '');
+  const clientSecret = rawClientSecret.trim().replace(/\s+/g, '');
 
   // Detailed validation logging
   console.log('OAuth Configuration Debug:', {
@@ -64,11 +64,6 @@ function validateAndCleanOAuthCredentials() {
       ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
       : "http://localhost:5000/auth/google/callback"
   });
-
-  // Additional space validation
-  if (clientId !== rawClientId.trim() || clientSecret !== rawClientSecret.trim()) {
-    throw new Error("OAuth credentials contain leading or trailing spaces. Please remove any extra spaces.");
-  }
 
   // Validate client ID format
   if (!clientId.endsWith('.apps.googleusercontent.com')) {
