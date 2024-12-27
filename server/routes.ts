@@ -5,8 +5,9 @@ import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "
 import { format, startOfDay, endOfDay } from "date-fns";
 import { db } from "@db";
 import { entries, summaries } from "@db/schema";
-import { eq, desc, sql, and, between } from "drizzle-orm";
+import { eq, desc, sql, between } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
+import { setupAuth } from "./auth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -19,13 +20,8 @@ const ensureAuthenticated = (req: Request, res: Response, next: any) => {
 };
 
 export function registerRoutes(app: Express): Server {
-  // Auth status endpoint
-  app.get("/api/auth/status", (req: Request, res: Response) => {
-    res.json({
-      isAuthenticated: req.isAuthenticated(),
-      user: req.user
-    });
-  });
+  // Set up authentication including Google OAuth
+  setupAuth(app);
 
   // Health check endpoint (public)
   app.get("/api/health", async (_req: Request, res: Response) => {

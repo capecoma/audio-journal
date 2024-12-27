@@ -2,6 +2,15 @@ import { pgTable, text, serial, integer, timestamp, jsonb, boolean, date } from 
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  email: text("email").unique(),
+  password: text("password"),
+  googleId: text("google_id").unique(),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+});
+
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
   audioUrl: text("audio_url").notNull(),
@@ -27,11 +36,15 @@ export const summaries = pgTable("summaries", {
   keyInsights: jsonb("key_insights").$type<string[]>().default([]),
 });
 
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
 export type Summary = typeof summaries.$inferSelect;
 export type InsertSummary = typeof summaries.$inferInsert;
 
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
 export const insertSummarySchema = createInsertSchema(summaries);
