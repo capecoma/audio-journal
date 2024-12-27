@@ -22,18 +22,21 @@ const inMemorySummaries: Array<{
   createdAt: string;
 }> = [];
 
-// Initialize with some test entries to persist between restarts
+// Initialize with some test entries only if there are no existing entries
 const initializeTestEntries = async () => {
-  if (inMemoryEntries.length === 0) {
+  // Only add test data if both entries and summaries are empty
+  if (inMemoryEntries.length === 0 && inMemorySummaries.length === 0) {
+    console.log('No existing entries found, initializing with test data...');
+
     // Create entries for the last 3 days
     for (let i = 2; i >= 0; i--) {
       const date = subDays(new Date(), i);
       const sampleEntry = {
         id: Date.now() - i * 86400000, // Unique ID based on date
         audioUrl: "data:audio/webm;base64,test",
-        transcript: `This is a test journal entry for ${format(date, 'PPP')} to ensure persistence.`,
-        tags: ["test", "initialization"],
-        duration: 60,
+        transcript: `Test entry for ${format(date, 'PPP')}`,
+        tags: ["test"],
+        duration: 30,
         isProcessed: true,
         createdAt: date.toISOString(),
       };
@@ -43,28 +46,20 @@ const initializeTestEntries = async () => {
       const summary = {
         id: Date.now() - i * 86400000,
         date: startOfDay(date).toISOString(),
-        highlightText: `Daily summary for ${format(date, 'PPP')}: Focused on testing and initialization of the journal system.`,
+        highlightText: `Test summary for ${format(date, 'PPP')}`,
         createdAt: date.toISOString(),
       };
-
-      const existingSummaryIndex = inMemorySummaries.findIndex(s =>
-        startOfDay(new Date(s.date)).getTime() === startOfDay(date).getTime()
-      );
-
-      if (existingSummaryIndex >= 0) {
-        inMemorySummaries[existingSummaryIndex] = summary;
-      } else {
-        inMemorySummaries.push(summary);
-      }
+      inMemorySummaries.push(summary);
     }
+    console.log('Test data initialized with', inMemoryEntries.length, 'entries and', inMemorySummaries.length, 'summaries');
+  } else {
+    console.log('Existing entries found, skipping test data initialization');
+    console.log('Current entries:', inMemoryEntries.length, 'Current summaries:', inMemorySummaries.length);
   }
 };
 
 export function registerRoutes(app: Express): Server {
-  // Clear route handler cache on startup
-  app._router = undefined;
-
-  // Initialize test data
+  // Initialize test data only if needed
   initializeTestEntries();
 
   // Basic entries route
@@ -74,14 +69,6 @@ export function registerRoutes(app: Express): Server {
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     res.json(sortedEntries);
-  });
-
-  // Get summaries route
-  app.get("/api/summaries", (_req, res) => {
-    const sortedSummaries = [...inMemorySummaries].sort((a, b) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    res.json(sortedSummaries);
   });
 
   // Get daily summaries route
