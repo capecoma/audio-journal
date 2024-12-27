@@ -1,113 +1,155 @@
-# User Guide
+# Audio Journal User Guide
 
 ## Getting Started
 
 ### First Time Setup
-
-1. **Account Access**
-   - Open the application in your browser
+1. **Accessing the Application**
+   - Open the application URL in your browser
    - Allow microphone access when prompted
    - Familiarize yourself with the dashboard layout
 
-2. **Trial System**
-   - Check your trial status on the trial page
-   - Activate your 10-day trial period
-   - Monitor remaining trial days
-   - View trial analytics for usage insights
+2. **Dashboard Overview**
+   - Navigation sidebar for main features
+   - Quick access to recording
+   - Daily insights summary
+   - Recent entries list
 
-### Recording Your First Journal Entry
+### Recording Your First Entry
 
-1. **Access the Journal Page**
-   - Click the "New Entry" button on the dashboard
-   - Or use the navigation menu to go to "Record"
+1. **Starting a Recording**
+   - Click the "New Entry" button
+   - Allow microphone access if prompted
+   - Wait for the audio visualizer to appear
+   - Click the microphone icon to begin
 
-2. **Recording Process**
-   - Click the microphone icon to start recording
+2. **During Recording**
    - Speak clearly into your microphone
-   - Watch the audio visualizer for input feedback
-   - Click the stop button when finished
-   - Wait for processing (transcription and analysis)
+   - Watch the audio visualizer for feedback
+   - Click stop when finished
+   - Wait for processing to complete
 
 3. **After Recording**
    - Review the transcribed text
-   - Check automatically generated tags
+   - Check generated tags
    - Confirm the entry is saved
-   - You'll be redirected to the dashboard
+   - View in the entries list
 
-## Dashboard Features
+## Core Features
 
-### 1. Daily Insights
-- View AI-generated summaries of your entries
-- Track emotional patterns through sentiment analysis
-- See key topics discussed
-- Read highlighted insights
-- Monitor daily journaling progress
+### Audio Recording
+- High-quality audio capture
+- Real-time visualization
+- Multiple format support
+- Automatic backup
 
-### 2. Journal Entries List
-- Browse all your past entries chronologically
-- Play audio recordings with the built-in player
-- View transcriptions in a modal
-- Search through entries by content
-- Filter entries by date or tags
-- Export entries to CSV format
+### Transcription
+- Automatic speech-to-text
+- Multiple language support
+- High accuracy
+- Error correction
 
-### 3. Analytics Dashboard
-- View usage patterns and trends
-- Track sentiment over time
-- Analyze common topics
-- Monitor trial usage
-- Export analytics data
+### AI Analysis
+- Sentiment detection
+- Topic identification
+- Key insights extraction
+- Pattern recognition
+
+### Daily Summaries
+- Automated daily insights
+- Emotion tracking
+- Topic clustering
+- Progress visualization
+
+## Dashboard Navigation
+
+### Main Dashboard
+- Quick recording access
+- Daily summary view
+- Recent entries
+- Analytics overview
+
+### Entries List
+- Chronological view
+- Search functionality
+- Filter options
+- Batch operations
+
+### Analytics
+- Usage patterns
+- Sentiment trends
+- Topic analysis
+- Custom reports
 
 ## Advanced Features
 
-### Audio Player Controls
-- Play/pause audio recordings
-- Adjust volume levels
-- Navigate through the recording
-- View transcript while listening
-- Speed control options
-
-### Search and Filtering
-- Full-text search in transcripts
-- Filter by date ranges
+### Search and Filter
+- Full-text search
+- Date range filters
 - Tag-based filtering
-- Combined search options
-- Save frequent searches
+- Combined filters
+
+### Audio Controls
+- Playback speed
+- Volume control
+- Progress tracking
+- Loop sections
 
 ### Data Export
-- Export all entries
-- Choose export format
-- Select date ranges
-- Include or exclude fields
-- Download transcripts
+- Multiple formats
+- Selected entries
+- Custom date ranges
+- Analysis reports
 
-## Tips for Best Results
+## Best Practices
 
-### Audio Recording
+### Recording Tips
 - Use a quiet environment
-- Speak clearly at a normal pace
-- Keep consistent microphone distance
-- Avoid background noise
-- Test audio levels before long entries
+- Maintain consistent distance
+- Speak naturally
+- Regular pauses
 
-### Organization Tips
-- Record entries regularly
-- Use consistent speaking patterns
-- Aim for 2-5 minute entries
-- Review daily summaries
-- Tag entries appropriately
+### Organization
+- Use consistent tags
+- Regular recordings
+- Review summaries
+- Update notes
 
-### Making the Most of Insights
-- Review daily summaries
-- Track emotional patterns
-- Note recurring topics
-- Use insights for reflection
-- Export data for personal analysis
+### Data Management
+- Regular exports
+- Tag maintenance
+- Archive old entries
+- Clean unused data
 
 ## Troubleshooting
 
 ### Common Issues
 
+1. **Audio Problems**
+   - Check microphone permissions
+   - Verify device selection
+   - Test audio levels
+   - Clear browser cache
+
+2. **Processing Issues**
+   - Check internet connection
+   - Verify file size
+   - Wait for completion
+   - Retry upload
+
+3. **Playback Problems**
+   - Check volume settings
+   - Try different browsers
+   - Clear cache
+   - Update audio drivers
+
+### Error Messages
+- Permission denied: Check browser settings
+- Upload failed: Check file size
+- Processing error: Retry submission
+- Playback error: Check audio format
+
+
+### Common Issues
 1. **Microphone Problems**
    - Check browser permissions
    - Verify microphone selection
@@ -130,7 +172,6 @@
    - Update audio drivers
 
 ### Error Messages
-
 Common error messages and solutions:
 - "Microphone access denied" - Check permissions
 - "Processing failed" - Retry upload
@@ -138,34 +179,45 @@ Common error messages and solutions:
 - "File too large" - Reduce recording length
 - "Session expired" - Log in again
 
-## Getting Help
 
-### Support Resources
-- Check the FAQ section
-- Review troubleshooting guides
-- Contact technical support
-- Join the user community
-- Submit feature requests
-
-### Best Practices
-- Keep entries backed up
-- Update browser regularly
-- Maintain good internet connection
-- Follow security guidelines
-- Report issues promptly
-
-## Privacy and Security
+## Security and Privacy
 
 ### Data Protection
-- All data is encrypted
-- Secure audio storage
-- Private transcriptions
-- Regular security updates
-- Data backup options
+- End-to-end encryption
+- Secure storage
+- Private transcripts
+- Regular backups
 
 ### Account Security
-- Use strong passwords
-- Enable security features
-- Monitor account activity
-- Report suspicious activity
-- Regular security audits
+- Strong passwords
+- Regular updates
+- Activity monitoring
+- Secure sessions
+
+## Support and Help
+
+### Getting Help
+- FAQ section
+- Support tickets
+- Community forum
+- Documentation
+
+### Feedback
+- Feature requests
+- Bug reports
+- Suggestions
+- Testimonials
+
+## Updates and Maintenance
+
+### Regular Updates
+- Feature additions
+- Bug fixes
+- Security patches
+- Performance improvements
+
+### Maintenance
+- Cache clearing
+- Data backup
+- Storage cleanup
+- Settings review
