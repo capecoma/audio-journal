@@ -51,7 +51,11 @@ export function setupAuth(app: Express) {
     process.exit(1);
   }
 
-  const redirectURI = 'http://localhost:5000/auth/google/callback';
+  const baseURL = process.env.NODE_ENV === 'production' 
+    ? process.env.HOST_URL || 'https://audio-journal.your-username.repl.co'
+    : 'https://audio-journal.your-username.repl.co';
+
+  const redirectURI = `${baseURL}/auth/google/callback`;
 
   console.log('Google OAuth Configuration:');
   console.log('- Callback URL:', redirectURI);
@@ -84,15 +88,12 @@ export function setupAuth(app: Express) {
   );
 
   // Auth routes
-  app.get(
-    "/auth/google",
-    (req, res, next) => {
-      console.log('Starting Google OAuth flow');
-      passport.authenticate("google", {
-        scope: ["profile", "email"]
-      })(req, res, next);
-    }
-  );
+  app.get("/auth/google", (req, res, next) => {
+    console.log('Starting Google OAuth flow');
+    passport.authenticate("google", {
+      scope: ["profile", "email"]
+    })(req, res, next);
+  });
 
   app.get(
     "/auth/google/callback",

@@ -1,14 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 
 export function setupSecurity(req: Request, res: Response, next: NextFunction) {
-  // Set security headers
+  // Set security headers with updated CSP
   res.setHeader(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Required for Vite/React development
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com",
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+      "img-src 'self' data: https: https://accounts.google.com",
       "connect-src 'self' https://accounts.google.com",
       "frame-src 'self' https://accounts.google.com",
       "base-uri 'self'",
