@@ -123,36 +123,36 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   };
 
   return (
-    <div className="w-full border rounded-lg p-4 bg-white shadow-sm">
-      <div className="flex items-center gap-4">
+    <div className="w-full border rounded-md p-2 bg-white shadow-sm">
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           onClick={togglePlayPause}
-          className="h-10 w-10"
+          className="h-8 w-8 p-0"
         >
           {isPlaying ? (
-            <PauseCircle className="h-6 w-6" />
+            <PauseCircle className="h-5 w-5" />
           ) : (
-            <PlayCircle className="h-6 w-6" />
+            <PlayCircle className="h-5 w-5" />
           )}
         </Button>
         <div className="flex-1 min-w-0">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {formatTime(currentTime)} / {formatTime(audioDuration)}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={toggleMute}
-            className="h-8 w-8"
+            className="h-6 w-6 p-0"
           >
             {isMuted ? (
-              <VolumeX className="h-4 w-4" />
+              <VolumeX className="h-3 w-3" />
             ) : (
-              <Volume2 className="h-4 w-4" />
+              <Volume2 className="h-3 w-3" />
             )}
           </Button>
           <Slider
@@ -160,18 +160,18 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             min={0}
             max={100}
             step={1}
-            className="w-20"
+            className="w-16"
             onValueChange={([value]) => setVolume(value / 100)}
           />
         </div>
         {transcript && (
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onTranscriptClick}
-            className="h-8 w-8"
+            className="h-6 w-6 p-0"
           >
-            <FileText className="h-4 w-4" />
+            <FileText className="h-3 w-3" />
           </Button>
         )}
       </div>
@@ -181,9 +181,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
         preload="metadata"
         onLoadedData={(e) => {
           const audio = e.currentTarget;
-          console.log('Audio loaded, checking duration:', audio.duration);
           if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-            console.log('Setting duration from loaded audio:', audio.duration);
             setAudioDuration(audio.duration);
           }
         }}
@@ -191,4 +189,13 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
       />
     </div>
   );
+}
+
+function formatTime(time: number | undefined) {
+  if (typeof time !== 'number' || isNaN(time) || !isFinite(time) || time < 0) {
+    return '0:00';
+  }
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
 }

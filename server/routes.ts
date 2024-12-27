@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary } from "./ai";
-import { format, startOfDay } from "date-fns";
+import { format, startOfDay, subDays } from "date-fns";
 
 const upload = multer({ storage: multer.memoryStorage() });
 const inMemoryEntries: Array<{
@@ -23,18 +23,40 @@ const inMemorySummaries: Array<{
 }> = [];
 
 // Initialize with some test entries to persist between restarts
-const initializeTestEntries = () => {
+const initializeTestEntries = async () => {
   if (inMemoryEntries.length === 0) {
-    const sampleEntry = {
-      id: Date.now(),
-      audioUrl: "data:audio/webm;base64,test",
-      transcript: "This is a test journal entry to ensure persistence.",
-      tags: ["test", "initialization"],
-      duration: 60,
-      isProcessed: true,
-      createdAt: new Date().toISOString(),
-    };
-    inMemoryEntries.push(sampleEntry);
+    // Create entries for the last 3 days
+    for (let i = 2; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const sampleEntry = {
+        id: Date.now() - i * 86400000, // Unique ID based on date
+        audioUrl: "data:audio/webm;base64,test",
+        transcript: `This is a test journal entry for ${format(date, 'PPP')} to ensure persistence.`,
+        tags: ["test", "initialization"],
+        duration: 60,
+        isProcessed: true,
+        createdAt: date.toISOString(),
+      };
+      inMemoryEntries.push(sampleEntry);
+
+      // Create a summary for each day
+      const summary = {
+        id: Date.now() - i * 86400000,
+        date: startOfDay(date).toISOString(),
+        highlightText: `Daily summary for ${format(date, 'PPP')}: Focused on testing and initialization of the journal system.`,
+        createdAt: date.toISOString(),
+      };
+
+      const existingSummaryIndex = inMemorySummaries.findIndex(s =>
+        startOfDay(new Date(s.date)).getTime() === startOfDay(date).getTime()
+      );
+
+      if (existingSummaryIndex >= 0) {
+        inMemorySummaries[existingSummaryIndex] = summary;
+      } else {
+        inMemorySummaries.push(summary);
+      }
+    }
   }
 };
 
