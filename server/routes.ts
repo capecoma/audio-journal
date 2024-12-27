@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { transcribeAudio, generateTags } from "./ai";
+import { transcribeAudio, generateTags, generateSummary } from "./ai";
+import { format, startOfDay } from "date-fns";
 
 const upload = multer({ storage: multer.memoryStorage() });
 const inMemoryEntries: Array<{
@@ -11,6 +12,13 @@ const inMemoryEntries: Array<{
   tags?: string[];
   duration: number;
   isProcessed: boolean;
+  createdAt: string;
+}> = [];
+
+const inMemorySummaries: Array<{
+  id: number;
+  date: string;
+  highlightText: string;
   createdAt: string;
 }> = [];
 
@@ -40,10 +48,26 @@ export function registerRoutes(app: Express): Server {
   // Basic entries route
   app.get("/api/entries", (_req, res) => {
     // Sort entries by creation date, newest first
-    const sortedEntries = [...inMemoryEntries].sort((a, b) => 
+    const sortedEntries = [...inMemoryEntries].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     res.json(sortedEntries);
+  });
+
+  // Get summaries route
+  app.get("/api/summaries", (_req, res) => {
+    const sortedSummaries = [...inMemorySummaries].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    res.json(sortedSummaries);
+  });
+
+  // Get daily summaries route
+  app.get("/api/summaries/daily", (_req, res) => {
+    const sortedSummaries = [...inMemorySummaries].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    res.json(sortedSummaries);
   });
 
   // Upload and transcribe route
@@ -66,21 +90,57 @@ export function registerRoutes(app: Express): Server {
       const tags = await generateTags(transcript);
       console.log('Tags generated:', tags);
 
+      const currentDate = new Date();
       const entry = {
         id: Date.now(),
         audioUrl,
         transcript,
         tags,
-        duration: Math.round((audioBuffer.length * 8) / 32000), // Simple duration calculation
+        duration: Math.round((audioBuffer.length * 8) / 32000),
         isProcessed: true,
-        createdAt: new Date().toISOString(),
+        createdAt: currentDate.toISOString(),
       };
 
       inMemoryEntries.push(entry);
+
+      // Get all entries for today and generate a summary
+      const todayStart = startOfDay(currentDate);
+      const todayEntries = inMemoryEntries.filter(e =>
+        startOfDay(new Date(e.createdAt)).getTime() === todayStart.getTime()
+      );
+
+      if (todayEntries.length > 0) {
+        const transcripts = todayEntries
+          .filter(e => e.transcript)
+          .map(e => e.transcript as string);
+
+        console.log('Generating daily summary...');
+        const summaryText = await generateSummary(transcripts);
+        console.log('Summary generated:', summaryText);
+
+        // Update or create today's summary
+        const existingSummaryIndex = inMemorySummaries.findIndex(s =>
+          startOfDay(new Date(s.date)).getTime() === todayStart.getTime()
+        );
+
+        const summary = {
+          id: Date.now(),
+          date: todayStart.toISOString(),
+          highlightText: summaryText,
+          createdAt: new Date().toISOString(),
+        };
+
+        if (existingSummaryIndex >= 0) {
+          inMemorySummaries[existingSummaryIndex] = summary;
+        } else {
+          inMemorySummaries.push(summary);
+        }
+      }
+
       res.json(entry);
     } catch (error: any) {
       console.error('Error processing entry:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message || "Failed to process entry",
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });

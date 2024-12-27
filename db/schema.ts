@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, jsonb, boolean, date } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 export const entries = pgTable("entries", {
@@ -11,8 +11,19 @@ export const entries = pgTable("entries", {
   tags: jsonb("tags").default([]),
 });
 
+export const summaries = pgTable("summaries", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  highlightText: text("highlight_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
+export type Summary = typeof summaries.$inferSelect;
+export type InsertSummary = typeof summaries.$inferInsert;
 
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
+export const insertSummarySchema = createInsertSchema(summaries);
+export const selectSummarySchema = createSelectSchema(summaries);
