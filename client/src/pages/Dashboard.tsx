@@ -7,7 +7,22 @@ import { useToast } from "@/hooks/use-toast";
 import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
 import Navigation from "@/components/layout/Navigation";
-import type { Entry, Summary } from "@db/schema";
+import type { Summary } from "@db/schema";
+
+interface Entry {
+  id: number;
+  audioUrl: string;
+  transcript?: string;
+  tags?: string[];
+  duration: number;
+  isProcessed: boolean;
+  createdAt: string;
+  aiAnalysis?: {
+    sentiment?: number;
+    topics?: string[];
+    insights?: string[];
+  };
+}
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");

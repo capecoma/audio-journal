@@ -81,28 +81,28 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                   <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="font-medium mb-2">No entries found</h3>
                   <p className="text-sm text-muted-foreground">
-                    {searchQuery ? 
-                      "Try adjusting your search terms" : 
+                    {searchQuery ?
+                      "Try adjusting your search terms" :
                       "Start by recording your first journal entry"}
                   </p>
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <div key={entry.id} className="p-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
-                    <div className="space-y-3">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                        <div className="space-y-1 min-w-0">
+                  <div key={entry.id} className="p-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                    <div className="space-y-2">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-1">
+                        <div className="space-y-0.5 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium whitespace-nowrap">
+                            <span className="text-sm font-medium whitespace-nowrap">
                               {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
                             </span>
-                            <span className="text-sm font-medium text-primary whitespace-nowrap">
+                            <span className="text-xs font-medium text-primary whitespace-nowrap">
                               {Math.round(entry.duration / 60)}min
                             </span>
                           </div>
                         </div>
-                        <AudioPlayer 
-                          audioUrl={entry.audioUrl} 
+                        <AudioPlayer
+                          audioUrl={entry.audioUrl}
                           duration={entry.duration}
                           onTranscriptClick={() => setSelectedTranscript({
                             text: entry.transcript,
@@ -114,8 +114,8 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                       </div>
 
                       {entry.transcript && (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed break-words">
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
                             {entry.transcript}
                           </p>
                           {entry.tags && entry.tags.length > 0 && (
