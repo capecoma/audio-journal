@@ -36,12 +36,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = () => {
-    window.location.href = '/auth/google';
+    // Ensure we're using the correct URL for login
+    window.location.href = 'http://localhost:5000/auth/google';
   };
 
   const logout = async () => {
     try {
-      await fetch('/auth/logout', { credentials: 'include' });
+      await fetch('http://localhost:5000/auth/logout', { credentials: 'include' });
       window.location.href = '/';
     } catch (error) {
       console.error('Logout failed:', error);

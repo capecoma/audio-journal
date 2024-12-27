@@ -9,10 +9,10 @@ export function setupSecurity(req: Request, res: Response, next: NextFunction) {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com",
       "style-src 'self' 'unsafe-inline' https://accounts.google.com",
       "img-src 'self' data: https: https://accounts.google.com",
-      "connect-src 'self' https://accounts.google.com",
+      "connect-src 'self' http://localhost:5000 https://accounts.google.com",
       "frame-src 'self' https://accounts.google.com",
       "base-uri 'self'",
-      "form-action 'self' https://accounts.google.com",
+      "form-action 'self' http://localhost:5000 https://accounts.google.com",
     ].join("; ")
   );
 

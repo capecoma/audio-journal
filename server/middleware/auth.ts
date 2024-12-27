@@ -51,56 +51,41 @@ export function setupAuth(app: Express) {
     process.exit(1);
   }
 
-  // Get the current Replit environment URL
-  const getReplitURL = (req: Express.Request) => {
-    const protocol = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
-    const host = req.get('host') || req.hostname;
-    return `${protocol}://${host}`;
-  };
+  const callbackURL = "http://localhost:5000/auth/google/callback";
 
-  // Dynamically configure Google Strategy on each request
-  app.use((req, res, next) => {
-    const baseURL = getReplitURL(req);
-    const redirectURI = `${baseURL}/auth/google/callback`;
-
-    console.log('OAuth Configuration:', {
-      baseURL,
-      redirectURI,
-      clientID: process.env.GOOGLE_CLIENT_ID?.substring(0, 8) + '...',
-      env: process.env.NODE_ENV || 'development'
-    });
-
-    passport.use(
-      new GoogleStrategy(
-        {
-          clientID: process.env.GOOGLE_CLIENT_ID.trim(),
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
-          callbackURL: redirectURI,
-        },
-        async (_accessToken, _refreshToken, profile, done) => {
-          try {
-            const user = {
-              id: profile.id,
-              email: profile.emails?.[0]?.value,
-              name: profile.displayName,
-              picture: profile.photos?.[0]?.value
-            };
-            return done(null, user);
-          } catch (error) {
-            console.error('Error in Google OAuth callback:', error);
-            return done(error as Error);
-          }
-        }
-      )
-    );
-    next();
+  console.log('OAuth Configuration:', {
+    callbackURL,
+    clientID: process.env.GOOGLE_CLIENT_ID?.substring(0, 8) + '...',
+    env: process.env.NODE_ENV || 'development'
   });
+
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID.trim(),
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
+        callbackURL,
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const user = {
+            id: profile.id,
+            email: profile.emails?.[0]?.value,
+            name: profile.displayName,
+            picture: profile.photos?.[0]?.value
+          };
+          return done(null, user);
+        } catch (error) {
+          console.error('Error in Google OAuth callback:', error);
+          return done(error as Error);
+        }
+      }
+    )
+  );
 
   // Auth routes
   app.get("/auth/google", (req, res, next) => {
-    const baseURL = getReplitURL(req);
     console.log('Starting OAuth flow:', {
-      url: baseURL,
       path: '/auth/google'
     });
     passport.authenticate("google", {
@@ -113,10 +98,6 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('OAuth callback received:', {
         query: req.query,
-        headers: {
-          host: req.get('host'),
-          referer: req.get('referer')
-        }
       });
 
       if (req.query.error) {
