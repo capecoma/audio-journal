@@ -22,7 +22,6 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Initialize with prop duration if available
     if (typeof duration === 'number' && duration > 0) {
       setAudioDuration(duration);
     }
@@ -34,29 +33,22 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     };
 
     const handleLoadedMetadata = () => {
-      console.log('Metadata loaded, audio duration:', audio.duration);
-      // Only update from audio element if we don't have a valid prop duration
       if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-        console.log('Updating duration from audio element:', audio.duration);
         setAudioDuration(audio.duration);
       }
     };
 
     const handleDurationChange = () => {
-      console.log('Duration changed, new duration:', audio.duration);
       if (!isNaN(audio.duration) && audio.duration > 0 && (!duration || duration === 0)) {
-        console.log('Updating duration on change:', audio.duration);
         setAudioDuration(audio.duration);
       }
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
-      // Use the current audioDuration state instead of potentially stale prop
       setCurrentTime(audioDuration);
     };
 
-    // Reset states when audio source changes
     setCurrentTime(0);
     setIsPlaying(false);
 
@@ -65,9 +57,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
 
-    // Force metadata loading
     if (audio.readyState === 0) {
-      console.log('Loading audio metadata...');
       audio.load();
     }
 
@@ -82,7 +72,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    
+
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
@@ -106,7 +96,6 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
     setIsMuted(!isMuted);
   };
 
-  // Update duration when prop changes
   useEffect(() => {
     if (duration && duration > 0) {
       setAudioDuration(duration);
@@ -123,7 +112,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   };
 
   return (
-    <div className="w-1/2 border rounded-md p-2 bg-white shadow-sm">
+    <div className="w-full max-w-[300px] border rounded-md p-2 bg-white shadow-sm">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
@@ -189,13 +178,4 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
       />
     </div>
   );
-}
-
-function formatTime(time: number | undefined) {
-  if (typeof time !== 'number' || isNaN(time) || !isFinite(time) || time < 0) {
-    return '0:00';
-  }
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
