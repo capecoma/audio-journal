@@ -34,16 +34,41 @@ function validateAndCleanOAuthCredentials() {
   const clientId = rawClientId.trim();
   const clientSecret = rawClientSecret.trim();
 
-  // Log cleaned state without exposing sensitive data
-  console.log('OAuth Credentials validation:', {
+  // Detailed validation logging
+  console.log('OAuth Configuration Debug:', {
+    environment: {
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      REPL_SLUG: process.env.REPL_SLUG,
+      REPL_OWNER: process.env.REPL_OWNER,
+    },
     clientId: {
+      present: !!clientId,
       length: clientId.length,
-      format: clientId.endsWith('.apps.googleusercontent.com')
+      format: {
+        hasSpaces: /\s/.test(clientId),
+        startsWithNumbers: /^\d/.test(clientId),
+        endsWithGoogleusercontent: clientId.toLowerCase().includes('googleusercontent.com'),
+        hasAppsPrefix: clientId.includes('apps.'),
+        preview: clientId ? `${clientId.substring(0, 8)}...${clientId.substring(Math.max(0, clientId.length - 20))}` : 'not present'
+      }
     },
     clientSecret: {
-      length: clientSecret.length
-    }
+      present: !!clientSecret,
+      length: clientSecret.length,
+      format: {
+        hasSpaces: /\s/.test(clientSecret),
+        preview: clientSecret ? `${clientSecret.substring(0, 4)}...` : 'not present'
+      }
+    },
+    callbackUrl: process.env.NODE_ENV === "production"
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+      : "http://localhost:5000/auth/google/callback"
   });
+
+  // Additional space validation
+  if (clientId !== rawClientId.trim() || clientSecret !== rawClientSecret.trim()) {
+    throw new Error("OAuth credentials contain leading or trailing spaces. Please remove any extra spaces.");
+  }
 
   // Validate client ID format
   if (!clientId.endsWith('.apps.googleusercontent.com')) {

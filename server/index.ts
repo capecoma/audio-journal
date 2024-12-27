@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { setupSecurity } from "./middleware/security";
 import { db } from "@db";
+import { users } from "@db/schema";
 
 // Debug OAuth configuration before app setup
 function debugCredentials() {
@@ -89,7 +90,8 @@ app.use((req, res, next) => {
   try {
     // Verify database connection before setting up auth
     try {
-      await db.query.users.findMany().limit(1);
+      console.log('Verifying database connection...');
+      const result = await db.select().from(users).execute();
       console.log('Database connection verified successfully');
     } catch (dbError) {
       console.error('Database connection failed:', dbError);
