@@ -3,17 +3,27 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
 import { format, startOfDay } from "date-fns";
-import { db, checkDatabaseConnection } from "@db";
+import { db } from "@db";
 import { entries, summaries } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+import type { Entry, Summary } from "@db/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
   // Add health check endpoint
   app.get("/api/health", async (_req, res) => {
-    const isConnected = await checkDatabaseConnection();
-    res.json({ status: isConnected ? "healthy" : "unhealthy" });
+    try {
+      const result = await db.execute(sql`SELECT 1 as check`);
+      res.json({ status: "healthy", details: "Database connection successful" });
+    } catch (err) {
+      const error = err as Error;
+      console.error("Health check failed:", error);
+      res.status(500).json({ 
+        status: "unhealthy", 
+        details: error.message 
+      });
+    }
   });
 
   // Basic entries route
@@ -25,9 +35,13 @@ export function registerRoutes(app: Express): Server {
       });
       console.log(`Successfully fetched ${allEntries.length} entries`);
       res.json(allEntries);
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       console.error("Error fetching entries:", error);
-      res.status(500).json({ error: "Failed to fetch entries", details: error.message });
+      res.status(500).json({ 
+        error: "Failed to fetch entries", 
+        details: error.message 
+      });
     }
   });
 
@@ -40,9 +54,13 @@ export function registerRoutes(app: Express): Server {
       });
       console.log(`Successfully fetched ${allSummaries.length} summaries`);
       res.json(allSummaries);
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       console.error("Error fetching summaries:", error);
-      res.status(500).json({ error: "Failed to fetch summaries", details: error.message });
+      res.status(500).json({ 
+        error: "Failed to fetch summaries", 
+        details: error.message 
+      });
     }
   });
 
@@ -74,25 +92,27 @@ export function registerRoutes(app: Express): Server {
       const currentDate = new Date();
 
       // Insert new entry
-      const [entry] = await db.insert(entries).values({
-        audioUrl,
-        transcript,
-        tags,
-        duration: Math.round((audioBuffer.length * 8) / 32000),
-        isProcessed: true,
-        createdAt: currentDate,
-        aiAnalysis: {
-          sentiment: aiAnalysis.sentiment,
-          topics: aiAnalysis.topics,
-          insights: aiAnalysis.insights
-        }
-      }).returning();
+      const [entry] = await db.insert(entries)
+        .values({
+          audioUrl,
+          transcript,
+          tags,
+          duration: Math.round((audioBuffer.length * 8) / 32000),
+          isProcessed: true,
+          createdAt: currentDate,
+          aiAnalysis: {
+            sentiment: aiAnalysis.sentiment,
+            topics: aiAnalysis.topics,
+            insights: aiAnalysis.insights
+          }
+        })
+        .returning();
 
       // Get all entries for today to generate a summary
       const todayStart = startOfDay(currentDate);
-      const todayEntries = await db.query.entries.findMany({
-        where: eq(entries.createdAt, todayStart)
-      });
+      const todayEntries = await db.select()
+        .from(entries)
+        .where(eq(entries.createdAt, todayStart));
 
       if (todayEntries.length > 0) {
         const transcripts = todayEntries
@@ -106,27 +126,34 @@ export function registerRoutes(app: Express): Server {
         // Calculate average sentiment and collect all topics
         const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
         const averageSentiment = Math.round(
-          entriesWithAnalysis.reduce((acc, e) => acc + (e.aiAnalysis?.sentiment || 0), 0) /
-          entriesWithAnalysis.length
+          entriesWithAnalysis.reduce((acc, e) => {
+            const sentiment = e.aiAnalysis?.sentiment;
+            return acc + (typeof sentiment === 'number' ? sentiment : 0);
+          }, 0) / entriesWithAnalysis.length
         );
 
-        const allTopics = entriesWithAnalysis.flatMap(e => e.aiAnalysis?.topics || []);
+        const allTopics = entriesWithAnalysis.flatMap(e => {
+          const topics = e.aiAnalysis?.topics;
+          return Array.isArray(topics) ? topics : [];
+        });
+
         const topicFrequency = allTopics.reduce((acc, topic) => {
           acc[topic] = (acc[topic] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
 
         const topTopics = Object.entries(topicFrequency)
-          .sort(([,a], [,b]) => b - a)
+          .sort((a, b) => b[1] - a[1])
           .slice(0, 3)
           .map(([topic]) => topic);
 
         // Update or create today's summary
-        const existingSummary = await db.query.summaries.findFirst({
-          where: eq(summaries.date, todayStart)
-        });
+        const existingSummary = await db.select()
+          .from(summaries)
+          .where(eq(summaries.date, todayStart))
+          .limit(1);
 
-        if (existingSummary) {
+        if (existingSummary.length > 0) {
           await db.update(summaries)
             .set({
               highlightText: summaryText,
@@ -134,16 +161,17 @@ export function registerRoutes(app: Express): Server {
               topicAnalysis: topTopics,
               keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
             })
-            .where(eq(summaries.id, existingSummary.id));
+            .where(eq(summaries.id, existingSummary[0].id));
         } else {
-          await db.insert(summaries).values({
-            date: todayStart,
-            highlightText: summaryText,
-            createdAt: currentDate,
-            sentimentScore: averageSentiment,
-            topicAnalysis: topTopics,
-            keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
-          });
+          await db.insert(summaries)
+            .values({
+              date: todayStart,
+              highlightText: summaryText,
+              createdAt: currentDate,
+              sentimentScore: averageSentiment,
+              topicAnalysis: topTopics,
+              keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+            });
         }
       }
 
