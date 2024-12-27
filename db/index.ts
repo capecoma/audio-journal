@@ -1,24 +1,21 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "@db/schema";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+}
 
 // Create postgres connection
-const sql = postgres({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT),
-  database: process.env.PGDATABASE,
-  username: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  max: 1
-});
+const sql = postgres(process.env.DATABASE_URL);
 
-// Create drizzle database instance
-export const db = drizzle(sql, { schema });
+// Create drizzle database instance with minimal configuration
+export const db = drizzle(sql);
 
-// Test connection function
+// Basic test connection function
 export async function testConnection() {
   try {
-    await sql`SELECT 1`;
+    const result = await sql`SELECT 1`;
+    console.log('Database connection successful:', result);
     return true;
   } catch (err) {
     console.error('Database connection failed:', err);

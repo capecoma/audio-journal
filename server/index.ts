@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { sql, testConnection } from "@db";
 
 const app = express();
 
@@ -35,34 +34,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Database health check endpoint
-app.get('/api/health', async (_req, res) => {
-  try {
-    const result = await sql.query('SELECT 1 as health_check');
-    res.json({ 
-      status: 'healthy', 
-      timestamp: new Date().toISOString(),
-      result: result.rows[0]
-    });
-  } catch (error: any) {
-    console.error('Database health check failed:', error);
-    res.status(500).json({ 
-      status: 'unhealthy', 
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 (async () => {
   try {
-    // Test database connection before starting server
-    const isConnected = await testConnection();
-    if (!isConnected) {
-      throw new Error('Failed to connect to database');
-    }
-    console.log('Database connection successful');
-
     const server = registerRoutes(app);
 
     if (app.get("env") === "development") {
