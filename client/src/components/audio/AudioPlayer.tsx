@@ -123,7 +123,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
   };
 
   return (
-    <div className="w-full border rounded-md p-2 bg-white shadow-sm">
+    <div className="w-1/2 border rounded-md p-2 bg-white shadow-sm">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
@@ -160,7 +160,7 @@ export default function AudioPlayer({ audioUrl, duration, onTranscriptClick, tra
             min={0}
             max={100}
             step={1}
-            className="w-16"
+            className="w-12"
             onValueChange={([value]) => setVolume(value / 100)}
           />
         </div>
