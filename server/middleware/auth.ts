@@ -7,6 +7,9 @@ import MemoryStore from "memorystore";
 // Initialize session store
 const SessionStore = MemoryStore(session);
 
+// For development, always use localhost:5000
+const CALLBACK_URL = "http://localhost:5000/auth/google/callback";
+
 export function setupAuth(app: Express) {
   if (!process.env.SESSION_SECRET) {
     console.warn("No SESSION_SECRET set, using fallback secret. This is not secure for production.");
@@ -51,10 +54,8 @@ export function setupAuth(app: Express) {
     process.exit(1);
   }
 
-  const callbackURL = "http://localhost:5000/auth/google/callback";
-
   console.log('OAuth Configuration:', {
-    callbackURL,
+    callbackURL: CALLBACK_URL,
     clientID: process.env.GOOGLE_CLIENT_ID?.substring(0, 8) + '...',
     env: process.env.NODE_ENV || 'development'
   });
@@ -64,7 +65,7 @@ export function setupAuth(app: Express) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID.trim(),
         clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
-        callbackURL,
+        callbackURL: CALLBACK_URL,
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
@@ -86,7 +87,8 @@ export function setupAuth(app: Express) {
   // Auth routes
   app.get("/auth/google", (req, res, next) => {
     console.log('Starting OAuth flow:', {
-      path: '/auth/google'
+      path: '/auth/google',
+      callbackURL: CALLBACK_URL
     });
     passport.authenticate("google", {
       scope: ["profile", "email"]
@@ -98,6 +100,8 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('OAuth callback received:', {
         query: req.query,
+        headers: req.headers,
+        callbackURL: CALLBACK_URL
       });
 
       if (req.query.error) {
