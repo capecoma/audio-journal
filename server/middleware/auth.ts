@@ -51,45 +51,58 @@ export function setupAuth(app: Express) {
     process.exit(1);
   }
 
-  const baseURL = process.env.NODE_ENV === 'production' 
-    ? process.env.HOST_URL || 'https://audio-journal.your-username.repl.co'
-    : 'https://audio-journal.your-username.repl.co';
+  // Get the current Replit environment URL
+  const getReplitURL = (req: Express.Request) => {
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : req.protocol;
+    const host = req.get('host') || req.hostname;
+    return `${protocol}://${host}`;
+  };
 
-  const redirectURI = `${baseURL}/auth/google/callback`;
+  // Dynamically configure Google Strategy on each request
+  app.use((req, res, next) => {
+    const baseURL = getReplitURL(req);
+    const redirectURI = `${baseURL}/auth/google/callback`;
 
-  console.log('Google OAuth Configuration:');
-  console.log('- Callback URL:', redirectURI);
-  console.log('- Client ID:', `${process.env.GOOGLE_CLIENT_ID.substring(0, 8)}...`);
-  console.log('- Environment:', process.env.NODE_ENV || 'development');
+    console.log('OAuth Configuration:', {
+      baseURL,
+      redirectURI,
+      clientID: process.env.GOOGLE_CLIENT_ID?.substring(0, 8) + '...',
+      env: process.env.NODE_ENV || 'development'
+    });
 
-  // Configure Google Strategy
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: process.env.GOOGLE_CLIENT_ID.trim(),
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
-        callbackURL: redirectURI,
-      },
-      async (_accessToken, _refreshToken, profile, done) => {
-        try {
-          const user = {
-            id: profile.id,
-            email: profile.emails?.[0]?.value,
-            name: profile.displayName,
-            picture: profile.photos?.[0]?.value
-          };
-          return done(null, user);
-        } catch (error) {
-          console.error('Error in Google OAuth callback:', error);
-          return done(error as Error);
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID: process.env.GOOGLE_CLIENT_ID.trim(),
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
+          callbackURL: redirectURI,
+        },
+        async (_accessToken, _refreshToken, profile, done) => {
+          try {
+            const user = {
+              id: profile.id,
+              email: profile.emails?.[0]?.value,
+              name: profile.displayName,
+              picture: profile.photos?.[0]?.value
+            };
+            return done(null, user);
+          } catch (error) {
+            console.error('Error in Google OAuth callback:', error);
+            return done(error as Error);
+          }
         }
-      }
-    )
-  );
+      )
+    );
+    next();
+  });
 
   // Auth routes
   app.get("/auth/google", (req, res, next) => {
-    console.log('Starting Google OAuth flow');
+    const baseURL = getReplitURL(req);
+    console.log('Starting OAuth flow:', {
+      url: baseURL,
+      path: '/auth/google'
+    });
     passport.authenticate("google", {
       scope: ["profile", "email"]
     })(req, res, next);
@@ -100,7 +113,10 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('OAuth callback received:', {
         query: req.query,
-        timestamp: new Date().toISOString()
+        headers: {
+          host: req.get('host'),
+          referer: req.get('referer')
+        }
       });
 
       if (req.query.error) {
