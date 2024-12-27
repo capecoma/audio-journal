@@ -8,6 +8,10 @@ import MemoryStore from "memorystore";
 const SessionStore = MemoryStore(session);
 
 export function setupAuth(app: Express) {
+  if (!process.env.SESSION_SECRET) {
+    console.warn("No SESSION_SECRET set, using fallback secret. This is not secure for production.");
+  }
+
   // Configure session middleware with better security
   app.use(
     session({
@@ -93,6 +97,7 @@ export function setupAuth(app: Express) {
       console.log('Starting Google OAuth flow...');
       passport.authenticate("google", {
         scope: ["profile", "email"],
+        prompt: 'select_account'  // Always show account selector
       })(req, res, next);
     }
   );
