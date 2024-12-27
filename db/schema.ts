@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, jsonb, boolean, date } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod";
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
@@ -8,8 +9,12 @@ export const entries = pgTable("entries", {
   duration: integer("duration"),
   isProcessed: boolean("is_processed").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  tags: jsonb("tags").default([]),
-  aiAnalysis: jsonb("ai_analysis").default({}),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  aiAnalysis: jsonb("ai_analysis").$type<{
+    sentiment?: number;
+    topics?: string[];
+    insights?: string[];
+  }>().default({}),
 });
 
 export const summaries = pgTable("summaries", {
@@ -18,8 +23,8 @@ export const summaries = pgTable("summaries", {
   highlightText: text("highlight_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentimentScore: integer("sentiment_score"),
-  topicAnalysis: jsonb("topic_analysis").default([]),
-  keyInsights: jsonb("key_insights").default([]),
+  topicAnalysis: jsonb("topic_analysis").$type<string[]>().default([]),
+  keyInsights: jsonb("key_insights").$type<string[]>().default([]),
 });
 
 export type Entry = typeof entries.$inferSelect;
