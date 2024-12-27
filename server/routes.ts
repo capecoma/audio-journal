@@ -1,82 +1,39 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { transcribeAudio, generateTags, generateSummary } from "./ai";
-import { format, startOfDay, subDays } from "date-fns";
+import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
+import { format, startOfDay } from "date-fns";
+import { db } from "@db";
+import { entries, summaries } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
-const inMemoryEntries: Array<{
-  id: number;
-  audioUrl: string;
-  transcript?: string;
-  tags?: string[];
-  duration: number;
-  isProcessed: boolean;
-  createdAt: string;
-}> = [];
-
-const inMemorySummaries: Array<{
-  id: number;
-  date: string;
-  highlightText: string;
-  createdAt: string;
-}> = [];
-
-// Initialize with some test entries only if there are no existing entries
-const initializeTestEntries = async () => {
-  // Only add test data if both entries and summaries are empty
-  if (inMemoryEntries.length === 0 && inMemorySummaries.length === 0) {
-    console.log('No existing entries found, initializing with test data...');
-
-    // Create entries for the last 3 days
-    for (let i = 2; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const sampleEntry = {
-        id: Date.now() - i * 86400000, // Unique ID based on date
-        audioUrl: "data:audio/webm;base64,test",
-        transcript: `Test entry for ${format(date, 'PPP')}`,
-        tags: ["test"],
-        duration: 30,
-        isProcessed: true,
-        createdAt: date.toISOString(),
-      };
-      inMemoryEntries.push(sampleEntry);
-
-      // Create a summary for each day
-      const summary = {
-        id: Date.now() - i * 86400000,
-        date: startOfDay(date).toISOString(),
-        highlightText: `Test summary for ${format(date, 'PPP')}`,
-        createdAt: date.toISOString(),
-      };
-      inMemorySummaries.push(summary);
-    }
-    console.log('Test data initialized with', inMemoryEntries.length, 'entries and', inMemorySummaries.length, 'summaries');
-  } else {
-    console.log('Existing entries found, skipping test data initialization');
-    console.log('Current entries:', inMemoryEntries.length, 'Current summaries:', inMemorySummaries.length);
-  }
-};
 
 export function registerRoutes(app: Express): Server {
-  // Initialize test data only if needed
-  initializeTestEntries();
-
   // Basic entries route
-  app.get("/api/entries", (_req, res) => {
-    // Sort entries by creation date, newest first
-    const sortedEntries = [...inMemoryEntries].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    res.json(sortedEntries);
+  app.get("/api/entries", async (_req, res) => {
+    try {
+      const allEntries = await db.query.entries.findMany({
+        orderBy: [desc(entries.createdAt)]
+      });
+      res.json(allEntries);
+    } catch (error) {
+      console.error("Error fetching entries:", error);
+      res.status(500).json({ error: "Failed to fetch entries" });
+    }
   });
 
   // Get daily summaries route
-  app.get("/api/summaries/daily", (_req, res) => {
-    const sortedSummaries = [...inMemorySummaries].sort((a, b) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    res.json(sortedSummaries);
+  app.get("/api/summaries/daily", async (_req, res) => {
+    try {
+      const allSummaries = await db.query.summaries.findMany({
+        orderBy: [desc(summaries.date)]
+      });
+      res.json(allSummaries);
+    } catch (error) {
+      console.error("Error fetching summaries:", error);
+      res.status(500).json({ error: "Failed to fetch summaries" });
+    }
   });
 
   // Upload and transcribe route
@@ -99,24 +56,33 @@ export function registerRoutes(app: Express): Server {
       const tags = await generateTags(transcript);
       console.log('Tags generated:', tags);
 
+      // Perform AI analysis
+      console.log('Performing AI analysis...');
+      const aiAnalysis = await analyzeContent(transcript);
+      console.log('AI analysis completed:', aiAnalysis);
+
       const currentDate = new Date();
-      const entry = {
-        id: Date.now(),
+
+      // Insert new entry
+      const [entry] = await db.insert(entries).values({
         audioUrl,
         transcript,
         tags,
         duration: Math.round((audioBuffer.length * 8) / 32000),
         isProcessed: true,
-        createdAt: currentDate.toISOString(),
-      };
+        createdAt: currentDate,
+        aiAnalysis: {
+          sentiment: aiAnalysis.sentiment,
+          topics: aiAnalysis.topics,
+          insights: aiAnalysis.insights
+        }
+      }).returning();
 
-      inMemoryEntries.push(entry);
-
-      // Get all entries for today and generate a summary
+      // Get all entries for today to generate a summary
       const todayStart = startOfDay(currentDate);
-      const todayEntries = inMemoryEntries.filter(e =>
-        startOfDay(new Date(e.createdAt)).getTime() === todayStart.getTime()
-      );
+      const todayEntries = await db.query.entries.findMany({
+        where: eq(entries.createdAt, todayStart)
+      });
 
       if (todayEntries.length > 0) {
         const transcripts = todayEntries
@@ -127,22 +93,47 @@ export function registerRoutes(app: Express): Server {
         const summaryText = await generateSummary(transcripts);
         console.log('Summary generated:', summaryText);
 
-        // Update or create today's summary
-        const existingSummaryIndex = inMemorySummaries.findIndex(s =>
-          startOfDay(new Date(s.date)).getTime() === todayStart.getTime()
+        // Calculate average sentiment and collect all topics
+        const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
+        const averageSentiment = Math.round(
+          entriesWithAnalysis.reduce((acc, e) => acc + (e.aiAnalysis?.sentiment || 0), 0) / 
+          entriesWithAnalysis.length
         );
 
-        const summary = {
-          id: Date.now(),
-          date: todayStart.toISOString(),
-          highlightText: summaryText,
-          createdAt: new Date().toISOString(),
-        };
+        const allTopics = entriesWithAnalysis.flatMap(e => e.aiAnalysis?.topics || []);
+        const topicFrequency = allTopics.reduce((acc, topic) => {
+          acc[topic] = (acc[topic] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
 
-        if (existingSummaryIndex >= 0) {
-          inMemorySummaries[existingSummaryIndex] = summary;
+        const topTopics = Object.entries(topicFrequency)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .map(([topic]) => topic);
+
+        // Update or create today's summary
+        const existingSummary = await db.query.summaries.findFirst({
+          where: eq(summaries.date, todayStart)
+        });
+
+        if (existingSummary) {
+          await db.update(summaries)
+            .set({ 
+              highlightText: summaryText,
+              sentimentScore: averageSentiment,
+              topicAnalysis: topTopics,
+              keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+            })
+            .where(eq(summaries.id, existingSummary.id));
         } else {
-          inMemorySummaries.push(summary);
+          await db.insert(summaries).values({
+            date: todayStart,
+            highlightText: summaryText,
+            createdAt: currentDate,
+            sentimentScore: averageSentiment,
+            topicAnalysis: topTopics,
+            keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+          });
         }
       }
 

@@ -5,6 +5,7 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
+// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const cache = new NodeCache({ stdTTL: 3600 });
 
@@ -47,11 +48,11 @@ export async function generateTags(transcript: string | undefined): Promise<stri
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a text analysis expert. Generate 2-4 relevant tags for the given text. Focus on themes, emotions, or key topics mentioned. Return only the tags separated by commas, without any additional text.",
+          content: "Extract 2-4 relevant tags from the text. Return only comma-separated tags, no additional text.",
         },
         {
           role: "user",
@@ -60,6 +61,7 @@ export async function generateTags(transcript: string | undefined): Promise<stri
       ],
       temperature: 0.7,
       max_tokens: 50,
+      response_format: { type: "json_object" }
     });
 
     const content = response.choices[0].message.content;
@@ -82,8 +84,49 @@ export async function generateTags(transcript: string | undefined): Promise<stri
     return tags;
   } catch (error) {
     console.error("Tag generation error:", error);
-    // Return empty array instead of throwing to prevent app crashes
     return [];
+  }
+}
+
+export async function analyzeContent(transcript: string): Promise<{
+  sentiment: number;
+  topics: string[];
+  insights: string[];
+}> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `Analyze the journal entry and provide:
+1. Sentiment score (1-5, where 1 is very negative and 5 is very positive)
+2. Main topics discussed (max 3)
+3. Key insights or patterns (max 3)
+
+Return the analysis in JSON format with keys: sentiment, topics, insights`,
+        },
+        {
+          role: "user",
+          content: transcript,
+        },
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const analysis = JSON.parse(response.choices[0].message.content);
+    return {
+      sentiment: Math.min(5, Math.max(1, analysis.sentiment)),
+      topics: analysis.topics.slice(0, 3),
+      insights: analysis.insights.slice(0, 3)
+    };
+  } catch (error) {
+    console.error("Analysis error:", error);
+    return {
+      sentiment: 3,
+      topics: [],
+      insights: []
+    };
   }
 }
 
@@ -96,7 +139,7 @@ ${transcripts.join("\n\n")}
 Please format the summary in a clear, readable way with bullet points for key takeaways.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 500,
