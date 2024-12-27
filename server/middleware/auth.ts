@@ -8,18 +8,20 @@ import MemoryStore from "memorystore";
 const SessionStore = MemoryStore(session);
 
 export function setupAuth(app: Express) {
-  // Configure session middleware
+  // Configure session middleware with better security
   app.use(
     session({
       store: new SessionStore({
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
-      secret: process.env.SESSION_SECRET || "your-secret-key",
+      secret: process.env.SESSION_SECRET || "dev-secret-key",
       resave: false,
       saveUninitialized: false,
       cookie: {
         secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax'
       },
     })
   );
@@ -29,31 +31,37 @@ export function setupAuth(app: Express) {
   app.use(passport.session());
 
   // Serialize user for the session
-  passport.serializeUser((user, done) => {
+  passport.serializeUser((user: Express.User, done) => {
     done(null, user);
   });
 
   // Deserialize user from the session
-  passport.deserializeUser((user, done) => {
+  passport.deserializeUser((user: Express.User, done) => {
     done(null, user);
   });
 
   // Set up Google OAuth strategy
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error("Missing Google OAuth credentials");
+    process.exit(1);
+  }
+
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: "/auth/google/callback",
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (_accessToken, _refreshToken, profile, done) => {
         try {
-          // Return user object with basic profile info
-          return done(null, {
+          const user = {
             id: profile.id,
             email: profile.emails?.[0]?.value,
             name: profile.displayName,
-          });
+            picture: profile.photos?.[0]?.value
+          };
+          return done(null, user);
         } catch (error) {
           return done(error as Error);
         }
@@ -79,11 +87,11 @@ export function setupAuth(app: Express) {
 
   app.get("/auth/logout", (req, res) => {
     req.logout(() => {
-      res.redirect("/");
+      res.redirect("/login");
     });
   });
 
-  // Add auth status endpoint
+  // Auth status endpoint
   app.get("/api/auth/status", (req, res) => {
     res.json({
       isAuthenticated: req.isAuthenticated(),
