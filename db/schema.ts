@@ -8,7 +8,7 @@ export const entries = pgTable("entries", {
   transcript: text("transcript"),
   duration: integer("duration"),
   isProcessed: boolean("is_processed").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
   tags: jsonb("tags").$type<string[]>().default([]),
   aiAnalysis: jsonb("ai_analysis").$type<{
     sentiment?: number;
@@ -19,9 +19,9 @@ export const entries = pgTable("entries", {
 
 export const summaries = pgTable("summaries", {
   id: serial("id").primaryKey(),
-  date: date("date").notNull(),
+  date: timestamp("date", { mode: 'string' }).notNull(),
   highlightText: text("highlight_text").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
   sentimentScore: integer("sentiment_score"),
   topicAnalysis: jsonb("topic_analysis").$type<string[]>().default([]),
   keyInsights: jsonb("key_insights").$type<string[]>().default([]),
