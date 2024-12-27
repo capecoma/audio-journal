@@ -17,7 +17,7 @@ declare global {
 
 export function setupAuth(app: Express) {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    throw new Error("Google OAuth credentials are not set");
+    throw new Error("Google OAuth credentials are not set. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.");
   }
 
   const MemoryStore = createMemoryStore(session);
@@ -27,8 +27,8 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      secure: true,
-      sameSite: "none"
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
@@ -63,7 +63,11 @@ export function setupAuth(app: Express) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          console.log('Google OAuth callback received for profile:', profile.id);
+          console.log('Google OAuth callback received:', {
+            profileId: profile.id,
+            email: profile.emails?.[0]?.value,
+            displayName: profile.displayName
+          });
 
           // Check if user exists by googleId
           let [user] = await db
@@ -84,7 +88,7 @@ export function setupAuth(app: Express) {
             }
 
             if (!user) {
-              // Create new user if doesn't exist
+              // Create new user
               console.log('Creating new user for:', profile.displayName);
               [user] = await db
                 .insert(users)
@@ -133,6 +137,17 @@ export function setupAuth(app: Express) {
 
   app.get(
     "/auth/google",
+    (req, res, next) => {
+      console.log('Starting Google OAuth flow:', {
+        path: req.path,
+        callbackURL,
+        headers: {
+          origin: req.headers.origin,
+          referer: req.headers.referer
+        }
+      });
+      next();
+    },
     passport.authenticate("google", { 
       scope: ["profile", "email"],
       prompt: "select_account",
@@ -143,6 +158,16 @@ export function setupAuth(app: Express) {
 
   app.get(
     "/auth/google/callback",
+    (req, res, next) => {
+      console.log('Received Google OAuth callback:', {
+        query: req.query,
+        headers: {
+          origin: req.headers.origin,
+          referer: req.headers.referer
+        }
+      });
+      next();
+    },
     passport.authenticate("google", { 
       failureRedirect: "/login",
       failureMessage: true

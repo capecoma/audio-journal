@@ -10,7 +10,7 @@ export function setupSecurity(req: Request, res: Response, next: NextFunction) {
       "style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.googleusercontent.com",
       "img-src 'self' data: https: https://accounts.google.com https://*.googleusercontent.com https://*.google.com",
       "connect-src 'self' https://accounts.google.com https://*.googleusercontent.com",
-      "frame-src 'self' https://accounts.google.com",
+      "frame-src 'self' https://accounts.google.com https://accounts.google.com/o/oauth2/",
       "base-uri 'self'",
       "form-action 'self' https://accounts.google.com",
       "object-src 'none'"
