@@ -8,7 +8,7 @@ import { tmpdir } from "os";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const cache = new NodeCache({ stdTTL: 3600 });
 
-export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
+export async function transcribeAudio(audioBuffer: Buffer): Promise<any> {
   try {
     // Create a temporary file from the buffer
     const tempFile = join(tmpdir(), `audio-${Date.now()}.webm`);
@@ -20,7 +20,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       response_format: "text"
     });
 
-    return transcript.text;
+    return transcript;
   } catch (error: any) {
     console.error("Transcription error:", error);
     if (error.message.includes('format')) {
@@ -30,8 +30,14 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   }
 }
 
-export async function generateTags(transcript: string): Promise<string[]> {
+export async function generateTags(transcript: string | undefined): Promise<string[]> {
   try {
+    // Validate transcript
+    if (!transcript || typeof transcript !== 'string' || transcript.trim().length === 0) {
+      console.log('Invalid transcript provided for tag generation');
+      return [];
+    }
+
     // Check cache first
     const cacheKey = `tags:${transcript.substring(0, 32)}`;
     const cachedTags = cache.get<string[]>(cacheKey);
@@ -55,16 +61,30 @@ export async function generateTags(transcript: string): Promise<string[]> {
       response_format: { type: "json_object" },
     });
 
-    const result = JSON.parse(response.choices[0].message.content || '{"tags":[]}');
-    const tags = result.tags || [];
+    const content = response.choices[0].message.content;
+    if (!content) {
+      console.log('No content in OpenAI response');
+      return [];
+    }
 
-    // Cache the result
-    cache.set(cacheKey, tags);
+    try {
+      const result = JSON.parse(content);
+      const tags = Array.isArray(result.tags) ? result.tags : [];
 
-    return tags;
+      // Cache the result
+      if (tags.length > 0) {
+        cache.set(cacheKey, tags);
+      }
+
+      return tags;
+    } catch (parseError) {
+      console.error('Error parsing OpenAI response:', parseError);
+      return [];
+    }
   } catch (error) {
     console.error("Tag generation error:", error);
-    throw new Error("Failed to generate tags");
+    // Return empty array instead of throwing to prevent app crashes
+    return [];
   }
 }
 
