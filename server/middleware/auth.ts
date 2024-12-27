@@ -50,13 +50,10 @@ export function setupAuth(app: Express) {
     process.exit(1);
   }
 
-  // Get the current host for dynamic callback URL
-  const host = process.env.NODE_ENV === 'production' 
-    ? process.env.HOST_URL 
-    : 'http://localhost:5000';
+  const redirectURI = 'http://localhost:5000/auth/google/callback';
 
   console.log('Google OAuth Configuration:');
-  console.log('- Callback URL:', `${host}/auth/google/callback`);
+  console.log('- Callback URL:', redirectURI);
   console.log('- Client ID:', `${process.env.GOOGLE_CLIENT_ID.substring(0, 8)}...`);
   console.log('- Environment:', process.env.NODE_ENV || 'development');
 
@@ -66,7 +63,7 @@ export function setupAuth(app: Express) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID.trim(),
         clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
-        callbackURL: `${host}/auth/google/callback`,
+        callbackURL: redirectURI,
         passReqToCallback: true,
       },
       async (req, _accessToken, _refreshToken, profile, done) => {
