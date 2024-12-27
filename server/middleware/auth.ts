@@ -97,7 +97,9 @@ export function setupAuth(app: Express) {
       console.log('Starting Google OAuth flow...');
       passport.authenticate("google", {
         scope: ["profile", "email"],
-        prompt: 'select_account'  // Always show account selector
+        prompt: 'select_account',  // Always show account selector
+        accessType: 'offline',     // Request refresh token
+        includeGrantedScopes: true // Include granted scopes in the response
       })(req, res, next);
     }
   );
@@ -108,6 +110,7 @@ export function setupAuth(app: Express) {
       console.log('Received callback from Google OAuth');
       if (req.query.error) {
         console.error('Google OAuth error:', req.query);
+        return res.redirect('/login?error=auth_failed');
       }
       passport.authenticate("google", {
         failureRedirect: "/login?error=auth_failed",
