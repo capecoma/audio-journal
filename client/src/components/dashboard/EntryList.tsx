@@ -42,7 +42,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
 
   return (
     <>
-      <Card className="h-[600px]">
+      <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div className="space-y-1">
@@ -73,11 +73,11 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
             />
           </div>
         </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-4 pr-4">
+        <CardContent className="p-0">
+          <ScrollArea className="h-[400px] px-6">
+            <div className="space-y-2">
               {entries.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                <div className="flex flex-col items-center justify-center h-[300px] text-center">
                   <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="font-medium mb-2">No entries found</h3>
                   <p className="text-sm text-muted-foreground">
@@ -88,7 +88,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <div key={entry.id} className="py-2 px-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                  <div key={entry.id} className="py-2 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
                     <div className="space-y-2">
                       <div className="flex flex-wrap justify-between items-center gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -112,7 +112,7 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                       </div>
 
                       {entry.transcript && (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
                             {entry.transcript}
                           </p>
