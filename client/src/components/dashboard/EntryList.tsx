@@ -88,18 +88,16 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                 </div>
               ) : (
                 entries.map((entry) => (
-                  <div key={entry.id} className="p-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                  <div key={entry.id} className="py-2 px-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
                     <div className="space-y-2">
-                      <div className="flex flex-col sm:flex-row justify-between items-start gap-1">
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium whitespace-nowrap">
-                              {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
-                            </span>
-                            <span className="text-xs font-medium text-primary whitespace-nowrap">
-                              {Math.round(entry.duration / 60)}min
-                            </span>
-                          </div>
+                      <div className="flex flex-wrap justify-between items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-medium whitespace-nowrap">
+                            {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
+                          </span>
+                          <span className="text-xs font-medium text-primary whitespace-nowrap">
+                            {Math.round(entry.duration / 60)}min
+                          </span>
                         </div>
                         <AudioPlayer
                           audioUrl={entry.audioUrl}
