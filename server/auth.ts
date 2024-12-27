@@ -8,7 +8,6 @@ import { db } from "@db";
 import { eq } from "drizzle-orm";
 import type { User } from "@db/schema";
 
-// Extend express session to include our user type
 declare global {
   namespace Express {
     interface User extends Omit<User, "password"> {}
@@ -16,9 +15,24 @@ declare global {
 }
 
 export function setupAuth(app: Express) {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  // Validate OAuth credentials
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!googleClientId || !googleClientSecret) {
     throw new Error("Google OAuth credentials are not set. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.");
   }
+
+  // Log detailed credential format (safely)
+  console.log('OAuth Credentials Check:', {
+    clientIdLength: googleClientId.length,
+    clientIdFormat: `${googleClientId.substring(0, 6)}...${googleClientId.substring(googleClientId.length - 4)}`,
+    clientSecretLength: googleClientSecret.length,
+    clientSecretPrefix: googleClientSecret.substring(0, 3) + '...',
+    environment: process.env.NODE_ENV || 'development',
+    replSlug: process.env.REPL_SLUG,
+    replOwner: process.env.REPL_OWNER
+  });
 
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
@@ -49,15 +63,19 @@ export function setupAuth(app: Express) {
 
   console.log('OAuth Configuration:', {
     callbackURL,
-    clientID: process.env.GOOGLE_CLIENT_ID?.slice(0, 8) + '...',
-    environment: process.env.NODE_ENV || 'development'
+    clientIDFormat: `${googleClientId.substring(0, 6)}...${googleClientId.substring(googleClientId.length - 4)}`,
+    environment: process.env.NODE_ENV || 'development',
+    sessionCookie: {
+      secure: sessionSettings.cookie?.secure,
+      sameSite: sessionSettings.cookie?.sameSite
+    }
   });
 
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        clientID: googleClientId,
+        clientSecret: googleClientSecret,
         callbackURL,
         proxy: true
       },
@@ -66,10 +84,12 @@ export function setupAuth(app: Express) {
           console.log('Google OAuth callback received:', {
             profileId: profile.id,
             email: profile.emails?.[0]?.value,
-            displayName: profile.displayName
+            displayName: profile.displayName,
+            accessTokenLength: accessToken?.length,
+            hasRefreshToken: !!refreshToken
           });
 
-          // Check if user exists by googleId
+          // Rest of the callback implementation...
           let [user] = await db
             .select()
             .from(users)
@@ -118,6 +138,7 @@ export function setupAuth(app: Express) {
     )
   );
 
+  // Passport serialize/deserialize functions
   passport.serializeUser((user, done) => {
     done(null, user.id);
   });
@@ -135,6 +156,7 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Auth routes with detailed logging
   app.get(
     "/auth/google",
     (req, res, next) => {
@@ -184,14 +206,6 @@ export function setupAuth(app: Express) {
       isAuthenticated: req.isAuthenticated(),
       user: req.user
     });
-  });
-
-  // User info endpoint
-  app.get("/api/user", (req, res) => {
-    if (req.isAuthenticated()) {
-      return res.json(req.user);
-    }
-    res.status(401).send("Not logged in");
   });
 
   // Logout endpoint

@@ -20,23 +20,30 @@ const ensureAuthenticated = (req: Request, res: Response, next: any) => {
 };
 
 export function registerRoutes(app: Express): Server {
+  // Health check endpoint (public)
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ status: "healthy" });
+  });
+
+  // Add OAuth configuration check endpoint
+  app.get("/api/auth/config", (_req: Request, res: Response) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    res.json({
+      oauth: {
+        configured: !!(clientId && clientSecret),
+        clientIdFormat: clientId ? `${clientId.substring(0, 6)}...${clientId.substring(clientId.length - 4)}` : 'not set',
+        clientSecretLength: clientSecret?.length || 0,
+        callbackUrl: process.env.NODE_ENV === "production"
+          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+          : "http://localhost:5000/auth/google/callback"
+      }
+    });
+  });
+
   // Set up authentication including Google OAuth
   setupAuth(app);
-
-  // Health check endpoint (public)
-  app.get("/api/health", async (_req: Request, res: Response) => {
-    try {
-      await db.execute(sql`SELECT 1 as check`);
-      res.json({ status: "healthy", details: "Database connection successful" });
-    } catch (err) {
-      const error = err as Error;
-      console.error("Health check failed:", error);
-      res.status(500).json({ 
-        status: "unhealthy", 
-        details: error.message 
-      });
-    }
-  });
 
   // Protected routes
   app.get("/api/entries", ensureAuthenticated, async (_req: Request, res: Response) => {
@@ -50,9 +57,9 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching entries:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch entries", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to fetch entries",
+        details: error.message
       });
     }
   });
@@ -68,9 +75,9 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching summaries:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch summaries", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to fetch summaries",
+        details: error.message
       });
     }
   });
@@ -145,15 +152,15 @@ export function registerRoutes(app: Express): Server {
 
         // Calculate average sentiment and collect all topics
         const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
-        const averageSentiment = entriesWithAnalysis.length > 0 
+        const averageSentiment = entriesWithAnalysis.length > 0
           ? Math.round(
-              entriesWithAnalysis.reduce((acc, e) => {
-                const analysis = typeof e.aiAnalysis === 'string' 
-                  ? JSON.parse(e.aiAnalysis)
-                  : e.aiAnalysis;
-                return acc + (analysis?.sentiment || 0);
-              }, 0) / entriesWithAnalysis.length
-            )
+            entriesWithAnalysis.reduce((acc, e) => {
+              const analysis = typeof e.aiAnalysis === 'string'
+                ? JSON.parse(e.aiAnalysis)
+                : e.aiAnalysis;
+              return acc + (analysis?.sentiment || 0);
+            }, 0) / entriesWithAnalysis.length
+          )
           : null;
 
         const allTopics = entriesWithAnalysis.flatMap(e => {
