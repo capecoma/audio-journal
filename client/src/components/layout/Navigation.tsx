@@ -1,11 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MicIcon, BarChart2, Crown } from "lucide-react";
+import { MicIcon, BarChart2, LogOut } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navigation() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: BarChart2 },
@@ -18,9 +20,14 @@ export default function Navigation() {
       <ScrollArea className="h-full w-full">
         <div className="space-y-8 py-8">
           <div className="px-4">
-            <h2 className="mb-6 px-2 text-xl font-semibold tracking-tight text-primary/90">
+            <h2 className="mb-2 px-2 text-xl font-semibold tracking-tight text-primary/90">
               Audio Journal
             </h2>
+            {user && (
+              <p className="px-2 text-sm text-muted-foreground mb-4">
+                {user.name}
+              </p>
+            )}
             <div className="space-y-2">
               {navItems.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href}>
@@ -38,6 +45,15 @@ export default function Navigation() {
                   </Button>
                 </Link>
               ))}
+
+              <Button
+                variant="ghost"
+                onClick={logout}
+                className="w-full justify-start text-base text-primary/60 hover:text-primary hover:bg-primary/5"
+              >
+                <LogOut className="mr-3 h-5 w-5" />
+                Sign Out
+              </Button>
             </div>
           </div>
         </div>

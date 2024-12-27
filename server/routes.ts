@@ -1,17 +1,17 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { db } from "@db";
 import { entries, summaries } from "@db/schema";
-import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
+import { eq, desc, sql, and, between } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware to ensure user is authenticated
-const ensureAuthenticated = (req: any, res: any, next: any) => {
+const ensureAuthenticated = (req: Request, res: Response, next: any) => {
   if (req.isAuthenticated()) {
     return next();
   }
@@ -20,7 +20,7 @@ const ensureAuthenticated = (req: any, res: any, next: any) => {
 
 export function registerRoutes(app: Express): Server {
   // Auth status endpoint
-  app.get("/api/auth/status", (req, res) => {
+  app.get("/api/auth/status", (req: Request, res: Response) => {
     res.json({
       isAuthenticated: req.isAuthenticated(),
       user: req.user
@@ -28,9 +28,9 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Health check endpoint (public)
-  app.get("/api/health", async (_req, res) => {
+  app.get("/api/health", async (_req: Request, res: Response) => {
     try {
-      const result = await db.execute(sql`SELECT 1 as check`);
+      await db.execute(sql`SELECT 1 as check`);
       res.json({ status: "healthy", details: "Database connection successful" });
     } catch (err) {
       const error = err as Error;
@@ -43,7 +43,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Protected routes
-  app.get("/api/entries", ensureAuthenticated, async (_req, res) => {
+  app.get("/api/entries", ensureAuthenticated, async (_req: Request, res: Response) => {
     try {
       console.log('Attempting to fetch entries from database...');
       const allEntries = await db.query.entries.findMany({
@@ -61,7 +61,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/summaries/daily", ensureAuthenticated, async (_req, res) => {
+  app.get("/api/summaries/daily", ensureAuthenticated, async (_req: Request, res: Response) => {
     try {
       console.log('Attempting to fetch daily summaries...');
       const allSummaries = await db.query.summaries.findMany({
@@ -79,7 +79,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/entries/upload", ensureAuthenticated, upload.single("audio"), async (req, res) => {
+  app.post("/api/entries/upload", ensureAuthenticated, upload.single("audio"), async (req: Request, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -106,21 +106,19 @@ export function registerRoutes(app: Express): Server {
       const currentDate = new Date();
 
       // Insert new entry
-      const [entry] = await db.insert(entries)
-        .values({
-          audioUrl,
-          transcript,
-          tags,
-          duration: Math.round((audioBuffer.length * 8) / 32000),
-          isProcessed: true,
-          createdAt: currentDate,
-          aiAnalysis: {
-            sentiment: aiAnalysis.sentiment,
-            topics: aiAnalysis.topics,
-            insights: aiAnalysis.insights
-          }
+      const [entry] = await db.insert(entries).values({
+        audioUrl,
+        transcript,
+        tags,
+        duration: Math.round((audioBuffer.length * 8) / 32000),
+        isProcessed: true,
+        createdAt: sql`CURRENT_TIMESTAMP`,
+        aiAnalysis: JSON.stringify({
+          sentiment: aiAnalysis.sentiment,
+          topics: aiAnalysis.topics,
+          insights: aiAnalysis.insights
         })
-        .returning();
+      }).returning();
 
       // Get all entries for today to generate a summary
       const todayStart = startOfDay(currentDate);
@@ -131,9 +129,10 @@ export function registerRoutes(app: Express): Server {
       const todayEntries = await db.select()
         .from(entries)
         .where(
-          and(
-            gte(entries.createdAt, todayStart),
-            lt(entries.createdAt, todayEnd)
+          between(
+            entries.createdAt,
+            sql`${todayStart.toISOString()}::timestamp`,
+            sql`${todayEnd.toISOString()}::timestamp`
           )
         );
 
@@ -153,15 +152,19 @@ export function registerRoutes(app: Express): Server {
         const averageSentiment = entriesWithAnalysis.length > 0 
           ? Math.round(
               entriesWithAnalysis.reduce((acc, e) => {
-                const sentiment = e.aiAnalysis?.sentiment;
-                return acc + (typeof sentiment === 'number' ? sentiment : 0);
+                const analysis = typeof e.aiAnalysis === 'string' 
+                  ? JSON.parse(e.aiAnalysis)
+                  : e.aiAnalysis;
+                return acc + (analysis?.sentiment || 0);
               }, 0) / entriesWithAnalysis.length
             )
           : null;
 
         const allTopics = entriesWithAnalysis.flatMap(e => {
-          const topics = e.aiAnalysis?.topics;
-          return Array.isArray(topics) ? topics : [];
+          const analysis = typeof e.aiAnalysis === 'string'
+            ? JSON.parse(e.aiAnalysis)
+            : e.aiAnalysis;
+          return Array.isArray(analysis?.topics) ? analysis.topics : [];
         });
 
         const topicFrequency = allTopics.reduce((acc, topic) => {
@@ -178,9 +181,10 @@ export function registerRoutes(app: Express): Server {
         const existingSummary = await db.select()
           .from(summaries)
           .where(
-            and(
-              gte(summaries.date, todayStart),
-              lt(summaries.date, todayEnd)
+            between(
+              summaries.date,
+              sql`${todayStart.toISOString()}::timestamp`,
+              sql`${todayEnd.toISOString()}::timestamp`
             )
           )
           .limit(1);
@@ -197,9 +201,9 @@ export function registerRoutes(app: Express): Server {
         } else {
           await db.insert(summaries)
             .values({
-              date: todayStart,
+              date: sql`${todayStart.toISOString()}::timestamp`,
               highlightText: summaryText,
-              createdAt: currentDate,
+              createdAt: sql`CURRENT_TIMESTAMP`,
               sentimentScore: averageSentiment,
               topicAnalysis: topTopics,
               keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []

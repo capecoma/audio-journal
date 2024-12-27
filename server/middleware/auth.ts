@@ -48,10 +48,7 @@ export function setupAuth(app: Express) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          // Here you would typically:
-          // 1. Check if user exists in your database
-          // 2. Create new user if they don't exist
-          // 3. Return user object
+          // Return user object with basic profile info
           return done(null, {
             id: profile.id,
             email: profile.emails?.[0]?.value,
@@ -86,11 +83,11 @@ export function setupAuth(app: Express) {
     });
   });
 
-  // Middleware to check if user is authenticated
-  app.use("/api/*", (req, res, next) => {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    res.status(401).json({ error: "Unauthorized" });
+  // Add auth status endpoint
+  app.get("/api/auth/status", (req, res) => {
+    res.json({
+      isAuthenticated: req.isAuthenticated(),
+      user: req.user,
+    });
   });
 }
