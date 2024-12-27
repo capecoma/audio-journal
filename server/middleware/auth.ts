@@ -55,21 +55,23 @@ export function setupAuth(app: Express) {
     ? process.env.HOST_URL 
     : 'http://localhost:5000';
 
-  console.log('Configuring Google OAuth with callback URL:', `${host}/auth/google/callback`);
-  console.log('Using client ID:', process.env.GOOGLE_CLIENT_ID.substring(0, 8) + '...');
+  console.log('Google OAuth Configuration:');
+  console.log('- Callback URL:', `${host}/auth/google/callback`);
+  console.log('- Client ID:', `${process.env.GOOGLE_CLIENT_ID.substring(0, 8)}...`);
+  console.log('- Environment:', process.env.NODE_ENV || 'development');
 
   // Configure Google Strategy with detailed error logging
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        clientID: process.env.GOOGLE_CLIENT_ID.trim(),
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
         callbackURL: `${host}/auth/google/callback`,
         passReqToCallback: true,
       },
       async (req, _accessToken, _refreshToken, profile, done) => {
         try {
-          console.log('Google OAuth callback received:', {
+          console.log('Google OAuth callback received for profile:', {
             id: profile.id,
             email: profile.emails?.[0]?.value,
             name: profile.displayName
@@ -94,7 +96,10 @@ export function setupAuth(app: Express) {
   app.get(
     "/auth/google",
     (req, res, next) => {
-      console.log('Starting Google OAuth flow...');
+      console.log('Starting Google OAuth flow:', {
+        timestamp: new Date().toISOString(),
+        headers: req.headers['user-agent']
+      });
       passport.authenticate("google", {
         scope: ["profile", "email"],
         prompt: 'select_account',  // Always show account selector
@@ -107,11 +112,20 @@ export function setupAuth(app: Express) {
   app.get(
     "/auth/google/callback",
     (req, res, next) => {
-      console.log('Received callback from Google OAuth');
+      console.log('OAuth callback received:', {
+        query: req.query,
+        timestamp: new Date().toISOString()
+      });
+
       if (req.query.error) {
-        console.error('Google OAuth error:', req.query);
+        console.error('Google OAuth error:', {
+          error: req.query.error,
+          details: req.query.error_description,
+          timestamp: new Date().toISOString()
+        });
         return res.redirect('/login?error=auth_failed');
       }
+
       passport.authenticate("google", {
         failureRedirect: "/login?error=auth_failed",
         successRedirect: "/",
