@@ -51,6 +51,8 @@ export function setupAuth(app: Express) {
     ? process.env.HOST_URL 
     : 'http://localhost:5000';
 
+  console.log('Configuring Google OAuth with callback URL:', `${host}/auth/google/callback`);
+
   // Configure Google Strategy with detailed error logging
   passport.use(
     new GoogleStrategy(
@@ -98,6 +100,9 @@ export function setupAuth(app: Express) {
     "/auth/google/callback",
     (req, res, next) => {
       console.log('Received callback from Google OAuth');
+      if (req.query.error) {
+        console.error('Google OAuth error:', req.query);
+      }
       passport.authenticate("google", {
         failureRedirect: "/login?error=auth_failed",
         successRedirect: "/",
