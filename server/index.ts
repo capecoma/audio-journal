@@ -3,7 +3,9 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { setupSecurity } from "./middleware/security";
+import { db } from "@db";
 
+// Debug OAuth configuration before app setup
 function debugCredentials() {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID || '';
@@ -52,18 +54,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set up authentication (includes session setup)
-try {
-  setupAuth(app);
-  log('Authentication setup completed successfully');
-} catch (error) {
-  console.error('Failed to setup authentication:', error);
-  process.exit(1); // Exit if auth setup fails as it's critical
-}
-
-// Add security middleware after auth is set up
-app.use(setupSecurity);
-
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
@@ -97,6 +87,33 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Verify database connection before setting up auth
+    try {
+      await db.query.users.findMany().limit(1);
+      console.log('Database connection verified successfully');
+    } catch (dbError) {
+      console.error('Database connection failed:', dbError);
+      process.exit(1);
+    }
+
+    // Add security middleware first
+    app.use(setupSecurity);
+
+    // Set up authentication (includes session setup)
+    try {
+      setupAuth(app);
+      log('Authentication setup completed successfully');
+    } catch (error) {
+      console.error('Failed to setup authentication:', error);
+      process.exit(1); // Exit if auth setup fails as it's critical
+    }
+
+    // Health check endpoint
+    app.get('/health', (_req, res) => {
+      res.json({ status: 'ok' });
+    });
+
+    const PORT = Number(process.env.PORT || 5000);
     const server = registerRoutes(app);
 
     // Error handling middleware should be after routes
@@ -107,16 +124,42 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
+    // Setup Vite or serve static files based on environment
     if (app.get("env") === "development") {
       await setupVite(app, server);
+      log('Vite middleware setup completed');
     } else {
       serveStatic(app);
+      log('Static file serving setup completed');
     }
 
-    const PORT = 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      log(`Server running on port ${PORT}`);
+    // Start the server with detailed logging and error handling
+    const httpServer = server.listen(PORT, "0.0.0.0", () => {
+      log(`Server is running on port ${PORT}`);
+      log(`Environment: ${app.get("env")}`);
+      log(`Auth callback URL: ${process.env.NODE_ENV === "production" 
+        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+        : "http://localhost:5000/auth/google/callback"}`);
     });
+
+    // Handle server errors
+    httpServer.on('error', (error: any) => {
+      console.error('Server error:', error);
+      if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use`);
+      }
+      process.exit(1);
+    });
+
+    // Handle process termination
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM signal received: closing HTTP server');
+      httpServer.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+      });
+    });
+
   } catch (error: unknown) {
     console.error("Failed to start server:", error instanceof Error ? error.message : String(error));
     process.exit(1);

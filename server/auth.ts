@@ -30,73 +30,45 @@ function validateAndCleanOAuthCredentials() {
     throw new Error("Missing OAuth credentials. Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
   }
 
-  // Clean credentials and log original state
-  console.log('Raw credentials state:', {
-    clientId: {
-      length: rawClientId.length,
-      hasLeadingSpace: rawClientId.startsWith(' '),
-      hasTrailingSpace: rawClientId.endsWith(' ')
-    },
-    clientSecret: {
-      length: rawClientSecret.length,
-      hasLeadingSpace: rawClientSecret.startsWith(' '),
-      hasTrailingSpace: rawClientSecret.endsWith(' ')
-    }
-  });
-
+  // Clean credentials
   const clientId = rawClientId.trim();
   const clientSecret = rawClientSecret.trim();
 
-  // Log cleaned state
-  console.log('Cleaned credentials state:', {
+  // Log cleaned state without exposing sensitive data
+  console.log('OAuth Credentials validation:', {
     clientId: {
       length: clientId.length,
-      hasLeadingSpace: clientId.startsWith(' '),
-      hasTrailingSpace: clientId.endsWith(' ')
+      format: clientId.endsWith('.apps.googleusercontent.com')
     },
     clientSecret: {
-      length: clientSecret.length,
-      hasLeadingSpace: clientSecret.startsWith(' '),
-      hasTrailingSpace: clientSecret.endsWith(' ')
+      length: clientSecret.length
     }
   });
 
   // Validate client ID format
   if (!clientId.endsWith('.apps.googleusercontent.com')) {
-    console.error("Invalid client ID format:", {
-      length: clientId.length,
-      endsWithCorrectDomain: clientId.endsWith('.apps.googleusercontent.com'),
-      containsSpaces: /\s/.test(clientId)
-    });
     throw new Error("Invalid Google OAuth client ID format. Must end with .apps.googleusercontent.com");
   }
 
-  // Validate lengths after trimming
+  // Validate lengths
   if (clientId.length < 50) {
-    throw new Error("Client ID appears too short after cleaning. Please check the credential.");
+    throw new Error("Client ID appears too short after cleaning");
   }
 
   if (clientSecret.length < 20) {
-    throw new Error("Client secret appears too short after cleaning. Please check the credential.");
+    throw new Error("Client secret appears too short after cleaning");
   }
 
   return { clientId, clientSecret };
 }
 
 export function setupAuth(app: Express) {
+  console.log('Starting authentication setup...');
+
   // Validate OAuth credentials
   const { clientId, clientSecret } = validateAndCleanOAuthCredentials();
 
-  console.log('OAuth Configuration:', {
-    environment: process.env.NODE_ENV || 'development',
-    clientIdValid: clientId.endsWith('.apps.googleusercontent.com'),
-    clientIdLength: clientId.length,
-    clientSecretLength: clientSecret.length,
-    callbackUrl: process.env.NODE_ENV === "production"
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-      : "http://localhost:5000/auth/google/callback"
-  });
-
+  console.log('Setting up session middleware...');
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "repl-auth-secret",
@@ -113,9 +85,11 @@ export function setupAuth(app: Express) {
   };
 
   if (app.get("env") === "production") {
+    console.log('Configuring for production environment...');
     app.set("trust proxy", 1);
   }
 
+  console.log('Initializing session and passport middleware...');
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -124,6 +98,7 @@ export function setupAuth(app: Express) {
     ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
     : "http://localhost:5000/auth/google/callback";
 
+  console.log('Configuring Google OAuth strategy...');
   passport.use(
     new GoogleStrategy(
       {
@@ -134,10 +109,10 @@ export function setupAuth(app: Express) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          console.log('Google OAuth callback received:', {
-            profileId: profile.id,
-            email: profile.emails?.[0]?.value,
-            displayName: profile.displayName
+          console.log('Processing OAuth callback for profile:', {
+            id: profile.id,
+            displayName: profile.displayName,
+            email: profile.emails?.[0]?.value
           });
 
           let [user] = await db
@@ -157,7 +132,7 @@ export function setupAuth(app: Express) {
             }
 
             if (!user) {
-              console.log('Creating new user for:', profile.displayName);
+              console.log('Creating new user account...');
               [user] = await db
                 .insert(users)
                 .values({
@@ -167,7 +142,7 @@ export function setupAuth(app: Express) {
                 })
                 .returning();
             } else {
-              console.log('Updating existing user with Google ID:', user.username);
+              console.log('Linking existing account with Google...');
               [user] = await db
                 .update(users)
                 .set({ googleId: profile.id })
@@ -178,7 +153,7 @@ export function setupAuth(app: Express) {
 
           return done(null, user);
         } catch (err) {
-          console.error("Google OAuth error:", err);
+          console.error("Error in Google OAuth callback:", err);
           return done(err as Error);
         }
       }
@@ -186,11 +161,13 @@ export function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => {
+    console.log('Serializing user:', user.id);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log('Deserializing user:', id);
       const [user] = await db
         .select()
         .from(users)
@@ -198,15 +175,18 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        return done(new Error('User not found during deserialization'));
+        return done(new Error('User not found'));
       }
       done(null, user);
     } catch (err) {
+      console.error('Error deserializing user:', err);
       done(err);
     }
   });
 
   // Auth routes
+  console.log('Setting up authentication routes...');
+
   app.get(
     "/auth/google",
     (req, res, next) => {
@@ -230,15 +210,8 @@ export function setupAuth(app: Express) {
       console.log('Received OAuth callback:', {
         query: req.query,
         error: req.query.error,
-        state: req.query.state,
         code: !!req.query.code
       });
-
-      // Handle OAuth errors explicitly
-      if (req.query.error) {
-        console.error('OAuth error:', req.query.error);
-        return res.redirect('/login?error=' + encodeURIComponent(req.query.error as string));
-      }
       next();
     },
     passport.authenticate("google", {
@@ -248,16 +221,15 @@ export function setupAuth(app: Express) {
     }),
     (req, res) => {
       const user = req.user as Express.User;
-      console.log('OAuth authentication successful, user:', {
+      console.log('OAuth authentication successful:', {
         id: user.id,
-        username: user.username,
-        email: user.email
+        username: user.username
       });
       res.redirect("/");
     }
   );
 
-  // Enhanced auth status endpoint
+  // Auth status endpoint
   app.get("/api/auth/status", (req, res) => {
     const user = req.user as Express.User | undefined;
     res.json({
@@ -266,26 +238,9 @@ export function setupAuth(app: Express) {
         id: user.id,
         username: user.username,
         email: user.email
-      } : null,
-      session: req.session ? {
-        id: req.session.id,
-        cookie: {
-          maxAge: req.session.cookie.maxAge,
-          secure: req.session.cookie.secure,
-          sameSite: req.session.cookie.sameSite
-        }
       } : null
     });
   });
 
-  // Logout endpoint
-  app.post("/api/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return res.status(500).send("Logout failed");
-      }
-      res.json({ message: "Logout successful" });
-    });
-  });
+  console.log('Authentication setup completed');
 }
