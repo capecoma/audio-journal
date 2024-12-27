@@ -52,7 +52,7 @@ export async function generateTags(transcript: string | undefined): Promise<stri
       messages: [
         {
           role: "system",
-          content: "Extract 2-4 relevant tags from the text. Return only comma-separated tags, no additional text.",
+          content: "Extract 2-4 relevant tags from the text and return them in JSON format. The response should be a JSON object with a 'tags' array containing the extracted tags.",
         },
         {
           role: "user",
@@ -70,11 +70,9 @@ export async function generateTags(transcript: string | undefined): Promise<stri
       return [];
     }
 
-    // Parse comma-separated tags
-    const tags = content
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(tag => tag.length > 0);
+    // Parse JSON response
+    const parsed = JSON.parse(content);
+    const tags = parsed.tags || [];
 
     // Cache the result
     if (tags.length > 0) {
