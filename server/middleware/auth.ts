@@ -27,6 +27,7 @@ export function setupAuth(app: Express) {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax'
       },
+      name: 'session_id', // Change session cookie name from default 'connect.sid'
     })
   );
 
@@ -82,7 +83,7 @@ export function setupAuth(app: Express) {
     )
   );
 
-  // Auth routes with error handling
+  // Auth routes
   app.get(
     "/auth/google",
     (req, res, next) => {

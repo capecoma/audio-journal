@@ -2,12 +2,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./middleware/auth";
+import { setupSecurity } from "./middleware/security";
 
 const app = express();
 
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Add security middleware before any routes
+app.use(setupSecurity);
 
 // Set up authentication
 setupAuth(app);
