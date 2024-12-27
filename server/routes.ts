@@ -4,7 +4,15 @@ import multer from "multer";
 import { transcribeAudio, generateTags } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
-const inMemoryEntries: any[] = [];
+const inMemoryEntries: Array<{
+  id: number;
+  audioUrl: string;
+  transcript?: string;
+  tags?: string[];
+  duration: number;
+  isProcessed: boolean;
+  createdAt: string;
+}> = [];
 
 export function registerRoutes(app: Express): Server {
   // Clear route handler cache on startup
@@ -12,7 +20,11 @@ export function registerRoutes(app: Express): Server {
 
   // Basic entries route
   app.get("/api/entries", (_req, res) => {
-    res.json(inMemoryEntries);
+    // Sort entries by creation date, newest first
+    const sortedEntries = [...inMemoryEntries].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    res.json(sortedEntries);
   });
 
   // Upload and transcribe route

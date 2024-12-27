@@ -10,11 +10,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Entry } from "@db/schema";
 import TagList from "./TagList";
 import { useState } from "react";
 import AudioPlayer from "@/components/audio/AudioPlayer";
 import { useToast } from "@/hooks/use-toast";
+
+interface Entry {
+  id: number;
+  audioUrl: string;
+  transcript?: string;
+  tags?: string[];
+  duration: number;
+  isProcessed: boolean;
+  createdAt: string;
+}
 
 interface EntryListProps {
   entries: Entry[];
@@ -24,7 +33,7 @@ interface EntryListProps {
 }
 
 export default function EntryList({ entries, onPlay, onSearch, searchQuery }: EntryListProps) {
-  const [selectedTranscript, setSelectedTranscript] = useState<{ text: string | undefined; date: string } | null>(null);
+  const [selectedTranscript, setSelectedTranscript] = useState<{ text: string | undefined; date: string; tags?: string[] } | null>(null);
   const { toast } = useToast();
 
   const handleExportClick = () => {
@@ -88,29 +97,30 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
                               {entry.createdAt ? format(new Date(entry.createdAt), "PPp") : 'No date'}
                             </span>
                             <span className="text-sm font-medium text-primary whitespace-nowrap">
-                              {Math.round(entry.duration! / 60)}min
+                              {Math.round(entry.duration / 60)}min
                             </span>
                           </div>
                         </div>
                         <AudioPlayer 
                           audioUrl={entry.audioUrl} 
-                          duration={typeof entry.duration === 'number' ? entry.duration : 0}
+                          duration={entry.duration}
                           onTranscriptClick={() => setSelectedTranscript({
-                            text: entry.transcript!,
-                            date: entry.createdAt ? format(new Date(entry.createdAt), "PPpp") : "No date"
+                            text: entry.transcript,
+                            date: entry.createdAt ? format(new Date(entry.createdAt), "PPpp") : "No date",
+                            tags: entry.tags
                           })}
                           transcript={entry.transcript}
                         />
                       </div>
-                      
+
                       {entry.transcript && (
                         <div className="space-y-3">
                           <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words">
                             {entry.transcript}
                           </p>
-                          <TagList 
-                            entryTags={entry.entryTags?.map(et => et.tag) ?? []}
-                          />
+                          {entry.tags && entry.tags.length > 0 && (
+                            <TagList tags={entry.tags} />
+                          )}
                         </div>
                       )}
                     </div>
@@ -127,8 +137,15 @@ export default function EntryList({ entries, onPlay, onSearch, searchQuery }: En
           <DialogHeader>
             <DialogTitle>Journal Entry - {selectedTranscript?.date}</DialogTitle>
           </DialogHeader>
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">
-            {selectedTranscript?.text}
+          <div className="mt-4">
+            {selectedTranscript?.tags && selectedTranscript.tags.length > 0 && (
+              <div className="mb-4">
+                <TagList tags={selectedTranscript.tags} />
+              </div>
+            )}
+            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              {selectedTranscript?.text}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
