@@ -8,51 +8,94 @@ import { db } from "@db";
 import { eq } from "drizzle-orm";
 import type { User } from "@db/schema";
 
+// Fix recursive type reference by explicitly defining session user type
 declare global {
   namespace Express {
-    interface User extends Omit<User, "password"> {}
+    interface User {
+      id: number;
+      username: string;
+      email: string | null;
+      googleId: string | null;
+      createdAt: string;
+    }
   }
+}
+
+function validateAndCleanOAuthCredentials() {
+  // Get and clean credentials
+  const rawClientId = process.env.GOOGLE_CLIENT_ID;
+  const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!rawClientId || !rawClientSecret) {
+    throw new Error("Missing OAuth credentials. Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
+  }
+
+  // Clean credentials and log original state
+  console.log('Raw credentials state:', {
+    clientId: {
+      length: rawClientId.length,
+      hasLeadingSpace: rawClientId.startsWith(' '),
+      hasTrailingSpace: rawClientId.endsWith(' ')
+    },
+    clientSecret: {
+      length: rawClientSecret.length,
+      hasLeadingSpace: rawClientSecret.startsWith(' '),
+      hasTrailingSpace: rawClientSecret.endsWith(' ')
+    }
+  });
+
+  const clientId = rawClientId.trim();
+  const clientSecret = rawClientSecret.trim();
+
+  // Log cleaned state
+  console.log('Cleaned credentials state:', {
+    clientId: {
+      length: clientId.length,
+      hasLeadingSpace: clientId.startsWith(' '),
+      hasTrailingSpace: clientId.endsWith(' ')
+    },
+    clientSecret: {
+      length: clientSecret.length,
+      hasLeadingSpace: clientSecret.startsWith(' '),
+      hasTrailingSpace: clientSecret.endsWith(' ')
+    }
+  });
+
+  // Validate client ID format
+  if (!clientId.endsWith('.apps.googleusercontent.com')) {
+    console.error("Invalid client ID format:", {
+      length: clientId.length,
+      endsWithCorrectDomain: clientId.endsWith('.apps.googleusercontent.com'),
+      containsSpaces: /\s/.test(clientId)
+    });
+    throw new Error("Invalid Google OAuth client ID format. Must end with .apps.googleusercontent.com");
+  }
+
+  // Validate lengths after trimming
+  if (clientId.length < 50) {
+    throw new Error("Client ID appears too short after cleaning. Please check the credential.");
+  }
+
+  if (clientSecret.length < 20) {
+    throw new Error("Client secret appears too short after cleaning. Please check the credential.");
+  }
+
+  return { clientId, clientSecret };
 }
 
 export function setupAuth(app: Express) {
   // Validate OAuth credentials
-  let googleClientId = process.env.GOOGLE_CLIENT_ID;
-  let googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const { clientId, clientSecret } = validateAndCleanOAuthCredentials();
 
-  // Debug credential presence and format
-  console.log('OAuth Credentials Debug:', {
-    clientId: {
-      present: !!googleClientId,
-      format: googleClientId ? {
-        length: googleClientId.length,
-        hasWhitespace: /^\s|\s$/.test(googleClientId),
-        preview: googleClientId ? `${googleClientId.substring(0, 8)}...${googleClientId.substring(Math.max(0, googleClientId.length - 20))}` : 'not present'
-      } : null
-    },
-    clientSecret: {
-      present: !!googleClientSecret,
-      length: googleClientSecret?.length
-    }
+  console.log('OAuth Configuration:', {
+    environment: process.env.NODE_ENV || 'development',
+    clientIdValid: clientId.endsWith('.apps.googleusercontent.com'),
+    clientIdLength: clientId.length,
+    clientSecretLength: clientSecret.length,
+    callbackUrl: process.env.NODE_ENV === "production"
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+      : "http://localhost:5000/auth/google/callback"
   });
-
-  // Validate and clean credentials
-  if (!googleClientId || !googleClientSecret) {
-    console.error("Missing OAuth credentials:", {
-      clientIdMissing: !googleClientId,
-      clientSecretMissing: !googleClientSecret
-    });
-    throw new Error("Google OAuth credentials are not set. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.");
-  }
-
-  // Clean up credentials
-  googleClientId = googleClientId.trim();
-  googleClientSecret = googleClientSecret.trim();
-
-  // Validate client ID format
-  if (!googleClientId.includes('.apps.googleusercontent.com')) {
-    console.error("Invalid client ID format. Expected to end with .apps.googleusercontent.com");
-    throw new Error("Invalid Google OAuth client ID format");
-  }
 
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
@@ -81,22 +124,11 @@ export function setupAuth(app: Express) {
     ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
     : "http://localhost:5000/auth/google/callback";
 
-  console.log('OAuth Configuration:', {
-    environment: process.env.NODE_ENV || 'development',
-    callbackURL,
-    clientIdValid: googleClientId.includes('.apps.googleusercontent.com'),
-    sessionConfig: {
-      secure: sessionSettings.cookie?.secure,
-      sameSite: sessionSettings.cookie?.sameSite,
-      proxy: app.get("env") === "production"
-    }
-  });
-
   passport.use(
     new GoogleStrategy(
       {
-        clientID: googleClientId,
-        clientSecret: googleClientSecret,
+        clientID: clientId,
+        clientSecret: clientSecret,
         callbackURL,
         proxy: true
       },
@@ -154,9 +186,6 @@ export function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => {
-    if (!user || !('id' in user)) {
-      return done(new Error('Invalid user object during serialization'));
-    }
     done(null, user.id);
   });
 
@@ -200,35 +229,55 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('Received OAuth callback:', {
         query: req.query,
-        error: req.query.error
+        error: req.query.error,
+        state: req.query.state,
+        code: !!req.query.code
       });
+
+      // Handle OAuth errors explicitly
+      if (req.query.error) {
+        console.error('OAuth error:', req.query.error);
+        return res.redirect('/login?error=' + encodeURIComponent(req.query.error as string));
+      }
       next();
     },
     passport.authenticate("google", {
-      failureRedirect: "/login",
-      failureMessage: true
+      failureRedirect: "/login?error=auth_failed",
+      failureMessage: true,
+      successReturnToOrRedirect: "/"
     }),
     (req, res) => {
-      console.log('OAuth authentication successful, redirecting to home');
+      const user = req.user as Express.User;
+      console.log('OAuth authentication successful, user:', {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      });
       res.redirect("/");
     }
   );
 
-  // Auth status endpoint
+  // Enhanced auth status endpoint
   app.get("/api/auth/status", (req, res) => {
+    const user = req.user as Express.User | undefined;
     res.json({
       isAuthenticated: req.isAuthenticated(),
-      user: req.user,
-      session: {
-        exists: !!req.session,
-        cookie: req.session?.cookie ? {
+      user: user ? {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      } : null,
+      session: req.session ? {
+        id: req.session.id,
+        cookie: {
           maxAge: req.session.cookie.maxAge,
           secure: req.session.cookie.secure,
           sameSite: req.session.cookie.sameSite
-        } : null
-      }
+        }
+      } : null
     });
   });
+
   // Logout endpoint
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {

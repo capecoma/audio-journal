@@ -52,16 +52,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Add security middleware before any routes
-app.use(setupSecurity);
-
-// Set up authentication
+// Set up authentication (includes session setup)
 try {
   setupAuth(app);
+  log('Authentication setup completed successfully');
 } catch (error) {
   console.error('Failed to setup authentication:', error);
-  // Continue app setup even if auth fails, so we can see debug endpoints
+  process.exit(1); // Exit if auth setup fails as it's critical
 }
+
+// Add security middleware after auth is set up
+app.use(setupSecurity);
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -98,6 +99,14 @@ app.use((req, res, next) => {
   try {
     const server = registerRoutes(app);
 
+    // Error handling middleware should be after routes
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      console.error('Server error:', err);
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+    });
+
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
@@ -106,7 +115,7 @@ app.use((req, res, next) => {
 
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
-      log(`serving on port ${PORT}`);
+      log(`Server running on port ${PORT}`);
     });
   } catch (error: unknown) {
     console.error("Failed to start server:", error instanceof Error ? error.message : String(error));

@@ -7,7 +7,6 @@ import { db } from "@db";
 import { entries, summaries } from "@db/schema";
 import { eq, desc, sql, between } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
-import { setupAuth } from "./auth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -53,9 +52,6 @@ export function registerRoutes(app: Express): Server {
       }
     });
   });
-
-  // Set up authentication including Google OAuth
-  setupAuth(app);
 
   // Protected routes
   app.get("/api/entries", ensureAuthenticated, async (_req: Request, res: Response) => {
