@@ -2,10 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
-import { format, startOfDay } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { db } from "@db";
 import { entries, summaries } from "@db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -110,9 +110,20 @@ export function registerRoutes(app: Express): Server {
 
       // Get all entries for today to generate a summary
       const todayStart = startOfDay(currentDate);
+      const todayEnd = endOfDay(currentDate);
+
+      console.log('Fetching today\'s entries between:', todayStart, 'and', todayEnd);
+
       const todayEntries = await db.select()
         .from(entries)
-        .where(eq(entries.createdAt, todayStart));
+        .where(
+          and(
+            gte(entries.createdAt, todayStart),
+            lt(entries.createdAt, todayEnd)
+          )
+        );
+
+      console.log(`Found ${todayEntries.length} entries for today`);
 
       if (todayEntries.length > 0) {
         const transcripts = todayEntries
@@ -125,12 +136,14 @@ export function registerRoutes(app: Express): Server {
 
         // Calculate average sentiment and collect all topics
         const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
-        const averageSentiment = Math.round(
-          entriesWithAnalysis.reduce((acc, e) => {
-            const sentiment = e.aiAnalysis?.sentiment;
-            return acc + (typeof sentiment === 'number' ? sentiment : 0);
-          }, 0) / entriesWithAnalysis.length
-        );
+        const averageSentiment = entriesWithAnalysis.length > 0 
+          ? Math.round(
+              entriesWithAnalysis.reduce((acc, e) => {
+                const sentiment = e.aiAnalysis?.sentiment;
+                return acc + (typeof sentiment === 'number' ? sentiment : 0);
+              }, 0) / entriesWithAnalysis.length
+            )
+          : null;
 
         const allTopics = entriesWithAnalysis.flatMap(e => {
           const topics = e.aiAnalysis?.topics;
@@ -150,7 +163,12 @@ export function registerRoutes(app: Express): Server {
         // Update or create today's summary
         const existingSummary = await db.select()
           .from(summaries)
-          .where(eq(summaries.date, todayStart))
+          .where(
+            and(
+              gte(summaries.date, todayStart),
+              lt(summaries.date, todayEnd)
+            )
+          )
           .limit(1);
 
         if (existingSummary.length > 0) {
