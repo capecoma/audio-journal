@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,22 @@ export default function Journal() {
   const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
   const [currentEntry, setCurrentEntry] = useState<Entry | null>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
+
+  // Effect to handle automatic navigation after showing transcript
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (showTranscript && currentEntry?.transcript) {
+      timeoutId = setTimeout(() => {
+        setLocation("/");
+      }, 3000); // Wait 3 seconds before redirecting
+    }
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [showTranscript, currentEntry, setLocation]);
 
   const uploadMutation = useMutation({
     mutationFn: async (audioBlob: Blob) => {
@@ -47,8 +63,9 @@ export default function Journal() {
       queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
       toast({
         title: "Success",
-        description: "Journal entry recorded and transcribed successfully",
+        description: "Journal entry recorded and transcribed successfully. Redirecting to dashboard...",
       });
+      setShowTranscript(true); // Trigger the automatic navigation
     },
     onError: (error) => {
       toast({
@@ -65,6 +82,7 @@ export default function Journal() {
   const handleRecordingComplete = async (audioBlob: Blob) => {
     setIsUploading(true);
     setCurrentEntry(null);
+    setShowTranscript(false);
     await uploadMutation.mutateAsync(audioBlob);
   };
 
@@ -92,7 +110,7 @@ export default function Journal() {
             onRecordingComplete={handleRecordingComplete}
           />
 
-          {isUploading && (
+          {isUploading && !currentEntry?.transcript && (
             <p className="text-center mt-4 text-sm text-muted-foreground">
               Uploading and processing your entry...
             </p>
@@ -105,6 +123,9 @@ export default function Journal() {
                 transcript={currentEntry.transcript} 
                 tags={currentEntry.tags || []} 
               />
+              <p className="text-center mt-4 text-sm text-muted-foreground">
+                Redirecting to dashboard in 3 seconds...
+              </p>
             </div>
           )}
         </CardContent>
