@@ -26,15 +26,27 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Add OAuth configuration check endpoint
-  app.get("/api/auth/config", (_req: Request, res: Response) => {
+  app.get("/api/auth/debug", (_req: Request, res: Response) => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
+    // Safe way to check credential format without exposing values
     res.json({
       oauth: {
-        configured: !!(clientId && clientSecret),
-        clientIdFormat: clientId ? `${clientId.substring(0, 6)}...${clientId.substring(clientId.length - 4)}` : 'not set',
-        clientSecretLength: clientSecret?.length || 0,
+        clientId: clientId ? {
+          length: clientId.length,
+          hasLeadingSpace: clientId.startsWith(' '),
+          hasTrailingSpace: clientId.endsWith(' '),
+          includesRequiredDomain: clientId.includes('.apps.googleusercontent.com'),
+          format: clientId.trim() === clientId ? 'clean' : 'has whitespace',
+          preview: clientId.length > 20 ? 
+            `${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 10)}` : 
+            'too short'
+        } : 'not set',
+        clientSecret: clientSecret ? {
+          length: clientSecret.length,
+          hasWhitespace: /\s/.test(clientSecret),
+        } : 'not set',
         callbackUrl: process.env.NODE_ENV === "production"
           ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
           : "http://localhost:5000/auth/google/callback"

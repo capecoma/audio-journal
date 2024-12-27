@@ -4,6 +4,48 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
 import { setupSecurity } from "./middleware/security";
 
+function debugCredentials() {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
+    console.log('OAuth Configuration Debug:', {
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        REPL_SLUG: process.env.REPL_SLUG,
+        REPL_OWNER: process.env.REPL_OWNER,
+      },
+      clientId: {
+        present: !!clientId,
+        length: clientId.length,
+        format: {
+          hasSpaces: /\s/.test(clientId),
+          startsWithNumbers: /^\d/.test(clientId),
+          endsWithGoogleusercontent: clientId.toLowerCase().includes('googleusercontent.com'),
+          hasAppsPrefix: clientId.includes('apps.'),
+          sample: clientId ? `${clientId.substring(0, 8)}...${clientId.substring(Math.max(0, clientId.length - 20))}` : 'not present'
+        }
+      },
+      clientSecret: {
+        present: !!clientSecret,
+        length: clientSecret.length,
+        format: {
+          hasSpaces: /\s/.test(clientSecret),
+          prefix: clientSecret ? `${clientSecret.substring(0, 4)}...` : 'not present'
+        }
+      },
+      callbackUrl: process.env.NODE_ENV === "production"
+        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+        : "http://localhost:5000/auth/google/callback"
+    });
+  } catch (error) {
+    console.error('Error while debugging OAuth configuration:', error);
+  }
+}
+
+// Debug OAuth configuration before app setup
+debugCredentials();
+
 const app = express();
 
 // Basic middleware
@@ -14,7 +56,12 @@ app.use(express.urlencoded({ extended: false }));
 app.use(setupSecurity);
 
 // Set up authentication
-setupAuth(app);
+try {
+  setupAuth(app);
+} catch (error) {
+  console.error('Failed to setup authentication:', error);
+  // Continue app setup even if auth fails, so we can see debug endpoints
+}
 
 // Request logging middleware
 app.use((req, res, next) => {
