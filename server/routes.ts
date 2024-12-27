@@ -10,8 +10,24 @@ import type { Entry, Summary } from "@db/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Middleware to ensure user is authenticated
+const ensureAuthenticated = (req: any, res: any, next: any) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ error: "Authentication required" });
+};
+
 export function registerRoutes(app: Express): Server {
-  // Add health check endpoint
+  // Auth status endpoint
+  app.get("/api/auth/status", (req, res) => {
+    res.json({
+      isAuthenticated: req.isAuthenticated(),
+      user: req.user
+    });
+  });
+
+  // Health check endpoint (public)
   app.get("/api/health", async (_req, res) => {
     try {
       const result = await db.execute(sql`SELECT 1 as check`);
@@ -26,8 +42,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Basic entries route
-  app.get("/api/entries", async (_req, res) => {
+  // Protected routes
+  app.get("/api/entries", ensureAuthenticated, async (_req, res) => {
     try {
       console.log('Attempting to fetch entries from database...');
       const allEntries = await db.query.entries.findMany({
@@ -45,8 +61,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get daily summaries route
-  app.get("/api/summaries/daily", async (_req, res) => {
+  app.get("/api/summaries/daily", ensureAuthenticated, async (_req, res) => {
     try {
       console.log('Attempting to fetch daily summaries...');
       const allSummaries = await db.query.summaries.findMany({
@@ -64,8 +79,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Upload and transcribe route
-  app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
+  app.post("/api/entries/upload", ensureAuthenticated, upload.single("audio"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
