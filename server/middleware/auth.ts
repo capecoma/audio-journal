@@ -57,23 +57,16 @@ export function setupAuth(app: Express) {
   console.log('- Client ID:', `${process.env.GOOGLE_CLIENT_ID.substring(0, 8)}...`);
   console.log('- Environment:', process.env.NODE_ENV || 'development');
 
-  // Configure Google Strategy with detailed error logging
+  // Configure Google Strategy
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID.trim(),
         clientSecret: process.env.GOOGLE_CLIENT_SECRET.trim(),
         callbackURL: redirectURI,
-        passReqToCallback: true,
       },
-      async (req, _accessToken, _refreshToken, profile, done) => {
+      async (_accessToken, _refreshToken, profile, done) => {
         try {
-          console.log('Google OAuth callback received for profile:', {
-            id: profile.id,
-            email: profile.emails?.[0]?.value,
-            name: profile.displayName
-          });
-
           const user = {
             id: profile.id,
             email: profile.emails?.[0]?.value,
@@ -93,15 +86,9 @@ export function setupAuth(app: Express) {
   app.get(
     "/auth/google",
     (req, res, next) => {
-      console.log('Starting Google OAuth flow:', {
-        timestamp: new Date().toISOString(),
-        headers: req.headers['user-agent']
-      });
+      console.log('Starting Google OAuth flow');
       passport.authenticate("google", {
-        scope: ["profile", "email"],
-        prompt: 'select_account',  // Always show account selector
-        accessType: 'offline',     // Request refresh token
-        includeGrantedScopes: true // Include granted scopes in the response
+        scope: ["profile", "email"]
       })(req, res, next);
     }
   );
@@ -117,8 +104,7 @@ export function setupAuth(app: Express) {
       if (req.query.error) {
         console.error('Google OAuth error:', {
           error: req.query.error,
-          details: req.query.error_description,
-          timestamp: new Date().toISOString()
+          details: req.query.error_description
         });
         return res.redirect('/login?error=auth_failed');
       }
@@ -126,19 +112,17 @@ export function setupAuth(app: Express) {
       passport.authenticate("google", {
         failureRedirect: "/login?error=auth_failed",
         successRedirect: "/",
-        failWithError: true,
       })(req, res, next);
     }
   );
 
   app.get("/auth/logout", (req, res) => {
-    console.log('User logging out');
     req.logout(() => {
       res.redirect("/login");
     });
   });
 
-  // Auth status endpoint with detailed user info
+  // Auth status endpoint
   app.get("/api/auth/status", (req, res) => {
     res.json({
       isAuthenticated: req.isAuthenticated(),
