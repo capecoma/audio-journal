@@ -1,10 +1,8 @@
-import { Switch, Route, Redirect, Link } from "wouter";
+import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Home } from "lucide-react";
 import { Suspense, lazy } from "react";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import LoginPage from "@/components/auth/LoginPage";
 
 // Lazy load page components
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -26,50 +24,19 @@ function LoadingPage() {
   );
 }
 
-// Protected Route Component
-function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any> }) {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <LoadingPage />;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect to="/login" />;
-  }
-
-  return <Component {...rest} />;
-}
-
-function AppRoutes() {
+function App() {
   return (
     <Suspense fallback={<LoadingPage />}>
       <Switch>
-        <Route path="/login" component={LoginPage} />
-        <Route path="/">
-          <ProtectedRoute component={Dashboard} />
-        </Route>
-        <Route path="/journal">
-          <ProtectedRoute component={Journal} />
-        </Route>
-        <Route path="/analytics">
-          <ProtectedRoute component={Analytics} />
-        </Route>
+        <Route path="/" component={Dashboard} />
+        <Route path="/journal" component={Journal} />
+        <Route path="/analytics" component={Analytics} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
   );
 }
 
-function App() {
-  return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
-  );
-}
-
-// fallback 404 not found page
 function NotFound() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">

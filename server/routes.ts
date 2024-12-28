@@ -1,60 +1,33 @@
-import type { Express, Request, Response } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { db } from "@db";
 import { entries, summaries } from "@db/schema";
-import { eq, desc, sql, between } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Middleware to ensure user is authenticated
-const ensureAuthenticated = (req: Request, res: Response, next: any) => {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.status(401).json({ error: "Authentication required" });
-};
-
 export function registerRoutes(app: Express): Server {
-  // Health check endpoint (public)
-  app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ status: "healthy" });
+  // Add health check endpoint
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const result = await db.execute(sql`SELECT 1 as check`);
+      res.json({ status: "healthy", details: "Database connection successful" });
+    } catch (err) {
+      const error = err as Error;
+      console.error("Health check failed:", error);
+      res.status(500).json({ 
+        status: "unhealthy", 
+        details: error.message 
+      });
+    }
   });
 
-  // Add OAuth configuration check endpoint
-  app.get("/api/auth/debug", (_req: Request, res: Response) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-    // Safe way to check credential format without exposing values
-    res.json({
-      oauth: {
-        clientId: clientId ? {
-          length: clientId.length,
-          hasLeadingSpace: clientId.startsWith(' '),
-          hasTrailingSpace: clientId.endsWith(' '),
-          includesRequiredDomain: clientId.includes('.apps.googleusercontent.com'),
-          format: clientId.trim() === clientId ? 'clean' : 'has whitespace',
-          preview: clientId.length > 20 ? 
-            `${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 10)}` : 
-            'too short'
-        } : 'not set',
-        clientSecret: clientSecret ? {
-          length: clientSecret.length,
-          hasWhitespace: /\s/.test(clientSecret),
-        } : 'not set',
-        callbackUrl: process.env.NODE_ENV === "production"
-          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-          : "http://localhost:5000/auth/google/callback"
-      }
-    });
-  });
-
-  // Protected routes
-  app.get("/api/entries", ensureAuthenticated, async (_req: Request, res: Response) => {
+  // Basic entries route
+  app.get("/api/entries", async (_req, res) => {
     try {
       console.log('Attempting to fetch entries from database...');
       const allEntries = await db.query.entries.findMany({
@@ -65,14 +38,15 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching entries:", error);
-      res.status(500).json({
-        error: "Failed to fetch entries",
-        details: error.message
+      res.status(500).json({ 
+        error: "Failed to fetch entries", 
+        details: error.message 
       });
     }
   });
 
-  app.get("/api/summaries/daily", ensureAuthenticated, async (_req: Request, res: Response) => {
+  // Get daily summaries route
+  app.get("/api/summaries/daily", async (_req, res) => {
     try {
       console.log('Attempting to fetch daily summaries...');
       const allSummaries = await db.query.summaries.findMany({
@@ -83,14 +57,15 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching summaries:", error);
-      res.status(500).json({
-        error: "Failed to fetch summaries",
-        details: error.message
+      res.status(500).json({ 
+        error: "Failed to fetch summaries", 
+        details: error.message 
       });
     }
   });
 
-  app.post("/api/entries/upload", ensureAuthenticated, upload.single("audio"), async (req: Request, res: Response) => {
+  // Upload and transcribe route
+  app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -117,19 +92,21 @@ export function registerRoutes(app: Express): Server {
       const currentDate = new Date();
 
       // Insert new entry
-      const [entry] = await db.insert(entries).values({
-        audioUrl,
-        transcript,
-        tags,
-        duration: Math.round((audioBuffer.length * 8) / 32000),
-        isProcessed: true,
-        createdAt: sql`CURRENT_TIMESTAMP`,
-        aiAnalysis: JSON.stringify({
-          sentiment: aiAnalysis.sentiment,
-          topics: aiAnalysis.topics,
-          insights: aiAnalysis.insights
+      const [entry] = await db.insert(entries)
+        .values({
+          audioUrl,
+          transcript,
+          tags,
+          duration: Math.round((audioBuffer.length * 8) / 32000),
+          isProcessed: true,
+          createdAt: currentDate,
+          aiAnalysis: {
+            sentiment: aiAnalysis.sentiment,
+            topics: aiAnalysis.topics,
+            insights: aiAnalysis.insights
+          }
         })
-      }).returning();
+        .returning();
 
       // Get all entries for today to generate a summary
       const todayStart = startOfDay(currentDate);
@@ -140,10 +117,9 @@ export function registerRoutes(app: Express): Server {
       const todayEntries = await db.select()
         .from(entries)
         .where(
-          between(
-            entries.createdAt,
-            sql`${todayStart.toISOString()}::timestamp`,
-            sql`${todayEnd.toISOString()}::timestamp`
+          and(
+            gte(entries.createdAt, todayStart),
+            lt(entries.createdAt, todayEnd)
           )
         );
 
@@ -160,22 +136,18 @@ export function registerRoutes(app: Express): Server {
 
         // Calculate average sentiment and collect all topics
         const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
-        const averageSentiment = entriesWithAnalysis.length > 0
+        const averageSentiment = entriesWithAnalysis.length > 0 
           ? Math.round(
-            entriesWithAnalysis.reduce((acc, e) => {
-              const analysis = typeof e.aiAnalysis === 'string'
-                ? JSON.parse(e.aiAnalysis)
-                : e.aiAnalysis;
-              return acc + (analysis?.sentiment || 0);
-            }, 0) / entriesWithAnalysis.length
-          )
+              entriesWithAnalysis.reduce((acc, e) => {
+                const sentiment = e.aiAnalysis?.sentiment;
+                return acc + (typeof sentiment === 'number' ? sentiment : 0);
+              }, 0) / entriesWithAnalysis.length
+            )
           : null;
 
         const allTopics = entriesWithAnalysis.flatMap(e => {
-          const analysis = typeof e.aiAnalysis === 'string'
-            ? JSON.parse(e.aiAnalysis)
-            : e.aiAnalysis;
-          return Array.isArray(analysis?.topics) ? analysis.topics : [];
+          const topics = e.aiAnalysis?.topics;
+          return Array.isArray(topics) ? topics : [];
         });
 
         const topicFrequency = allTopics.reduce((acc, topic) => {
@@ -192,10 +164,9 @@ export function registerRoutes(app: Express): Server {
         const existingSummary = await db.select()
           .from(summaries)
           .where(
-            between(
-              summaries.date,
-              sql`${todayStart.toISOString()}::timestamp`,
-              sql`${todayEnd.toISOString()}::timestamp`
+            and(
+              gte(summaries.date, todayStart),
+              lt(summaries.date, todayEnd)
             )
           )
           .limit(1);
@@ -212,9 +183,9 @@ export function registerRoutes(app: Express): Server {
         } else {
           await db.insert(summaries)
             .values({
-              date: sql`${todayStart.toISOString()}::timestamp`,
+              date: todayStart,
               highlightText: summaryText,
-              createdAt: sql`CURRENT_TIMESTAMP`,
+              createdAt: currentDate,
               sentimentScore: averageSentiment,
               topicAnalysis: topTopics,
               keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
