@@ -6,7 +6,6 @@ import createMemoryStore from "memorystore";
 import { users } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
-import type { User } from "@db/schema";
 
 // Fix recursive type reference by explicitly defining session user type
 declare global {
@@ -21,74 +20,10 @@ declare global {
   }
 }
 
-function validateAndCleanOAuthCredentials() {
-  // Get and clean credentials
-  const rawClientId = process.env.GOOGLE_CLIENT_ID;
-  const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (!rawClientId || !rawClientSecret) {
-    throw new Error("Missing OAuth credentials. Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
-  }
-
-  // Clean credentials - aggressively trim and remove any whitespace
-  const clientId = rawClientId.trim().replace(/\s+/g, '');
-  const clientSecret = rawClientSecret.trim().replace(/\s+/g, '');
-
-  // Detailed validation logging
-  console.log('OAuth Configuration Debug:', {
-    environment: {
-      NODE_ENV: process.env.NODE_ENV || 'development',
-      REPL_SLUG: process.env.REPL_SLUG,
-      REPL_OWNER: process.env.REPL_OWNER,
-    },
-    clientId: {
-      present: !!clientId,
-      length: clientId.length,
-      format: {
-        hasSpaces: /\s/.test(clientId),
-        startsWithNumbers: /^\d/.test(clientId),
-        endsWithGoogleusercontent: clientId.toLowerCase().includes('googleusercontent.com'),
-        hasAppsPrefix: clientId.includes('apps.'),
-        preview: clientId ? `${clientId.substring(0, 8)}...${clientId.substring(Math.max(0, clientId.length - 20))}` : 'not present'
-      }
-    },
-    clientSecret: {
-      present: !!clientSecret,
-      length: clientSecret.length,
-      format: {
-        hasSpaces: /\s/.test(clientSecret),
-        preview: clientSecret ? `${clientSecret.substring(0, 4)}...` : 'not present'
-      }
-    },
-    callbackUrl: process.env.NODE_ENV === "production"
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-      : "http://localhost:5000/auth/google/callback"
-  });
-
-  // Validate client ID format
-  if (!clientId.endsWith('.apps.googleusercontent.com')) {
-    throw new Error("Invalid Google OAuth client ID format. Must end with .apps.googleusercontent.com");
-  }
-
-  // Validate lengths
-  if (clientId.length < 50) {
-    throw new Error("Client ID appears too short after cleaning");
-  }
-
-  if (clientSecret.length < 20) {
-    throw new Error("Client secret appears too short after cleaning");
-  }
-
-  return { clientId, clientSecret };
-}
-
 export function setupAuth(app: Express) {
   console.log('Starting authentication setup...');
 
-  // Validate OAuth credentials
-  const { clientId, clientSecret } = validateAndCleanOAuthCredentials();
-
-  console.log('Setting up session middleware...');
+  // Set up session store
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "repl-auth-secret",
@@ -96,35 +31,39 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+      secure: true,
+      sameSite: 'none' // Required for cross-site authentication
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
   };
 
-  if (app.get("env") === "production") {
-    console.log('Configuring for production environment...');
-    app.set("trust proxy", 1);
-  }
+  // Get callback URL (always use Replit URL)
+  const replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+  const callbackUrl = `${replitUrl}/auth/google/callback`;
 
-  console.log('Initializing session and passport middleware...');
+  // Initialize session and passport
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const callbackURL = process.env.NODE_ENV === "production"
-    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-    : "http://localhost:5000/auth/google/callback";
+  // Get and validate credentials
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
 
-  console.log('Configuring Google OAuth strategy...');
+  if (!clientId || !clientSecret) {
+    console.error("Missing OAuth credentials");
+    return;
+  }
+
+  // Configure Google Strategy
   passport.use(
     new GoogleStrategy(
       {
         clientID: clientId,
         clientSecret: clientSecret,
-        callbackURL,
+        callbackURL: callbackUrl,
         proxy: true
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -135,6 +74,7 @@ export function setupAuth(app: Express) {
             email: profile.emails?.[0]?.value
           });
 
+          // Find or create user
           let [user] = await db
             .select()
             .from(users)
@@ -180,6 +120,7 @@ export function setupAuth(app: Express) {
     )
   );
 
+  // Serialize/Deserialize user
   passport.serializeUser((user, done) => {
     console.log('Serializing user:', user.id);
     done(null, user.id);
@@ -205,17 +146,10 @@ export function setupAuth(app: Express) {
   });
 
   // Auth routes
-  console.log('Setting up authentication routes...');
-
   app.get(
     "/auth/google",
     (req, res, next) => {
-      console.log('Starting Google OAuth flow:', {
-        headers: {
-          origin: req.headers.origin,
-          referer: req.headers.referer
-        }
-      });
+      console.log('Starting Google OAuth flow from:', req.headers.referer);
       next();
     },
     passport.authenticate("google", {
@@ -229,38 +163,31 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('Received OAuth callback:', {
         query: req.query,
-        error: req.query.error,
-        code: !!req.query.code
+        error: req.query.error
       });
       next();
     },
     passport.authenticate("google", {
       failureRedirect: "/login?error=auth_failed",
-      failureMessage: true,
-      successReturnToOrRedirect: "/"
-    }),
-    (req, res) => {
-      const user = req.user as Express.User;
-      console.log('OAuth authentication successful:', {
-        id: user.id,
-        username: user.username
-      });
-      res.redirect("/");
-    }
+      successReturnToOrRedirect: "/",
+    })
   );
 
   // Auth status endpoint
   app.get("/api/auth/status", (req, res) => {
-    const user = req.user as Express.User | undefined;
     res.json({
       isAuthenticated: req.isAuthenticated(),
-      user: user ? {
-        id: user.id,
-        username: user.username,
-        email: user.email
+      user: req.user ? {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email
       } : null
     });
   });
 
-  console.log('Authentication setup completed');
+  console.log('Auth setup completed with config:', {
+    callbackUrl,
+    cookieSecure: sessionSettings.cookie?.secure,
+    cookieSameSite: sessionSettings.cookie?.sameSite
+  });
 }

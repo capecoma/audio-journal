@@ -6,67 +6,7 @@ import { setupSecurity } from "./middleware/security";
 import { db } from "@db";
 import { users } from "@db/schema";
 
-// Debug OAuth configuration before app setup
-function debugCredentials() {
-  try {
-    const rawClientId = process.env.GOOGLE_CLIENT_ID || '';
-    const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
-
-    // Clean credentials
-    const clientId = rawClientId.trim().replace(/\s+/g, '');
-    const clientSecret = rawClientSecret.trim().replace(/\s+/g, '');
-
-    console.log('OAuth Configuration Debug:', {
-      environment: {
-        NODE_ENV: process.env.NODE_ENV || 'development',
-        REPL_SLUG: process.env.REPL_SLUG,
-        REPL_OWNER: process.env.REPL_OWNER,
-      },
-      clientId: {
-        present: !!clientId,
-        length: clientId.length,
-        format: {
-          hasSpaces: /\s/.test(clientId),
-          startsWithNumbers: /^\d/.test(clientId),
-          endsWithGoogleusercontent: clientId.toLowerCase().includes('googleusercontent.com'),
-          hasAppsPrefix: clientId.includes('apps.'),
-          sample: clientId ? `${clientId.substring(0, 8)}...${clientId.substring(Math.max(0, clientId.length - 20))}` : 'not present'
-        }
-      },
-      clientSecret: {
-        present: !!clientSecret,
-        length: clientSecret.length,
-        format: {
-          hasSpaces: /\s/.test(clientSecret),
-          prefix: clientSecret ? `${clientSecret.substring(0, 4)}...` : 'not present'
-        }
-      },
-      callbackUrl: process.env.NODE_ENV === "production"
-        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-        : "http://localhost:5000/auth/google/callback"
-    });
-
-    // Update environment variables with cleaned values
-    process.env.GOOGLE_CLIENT_ID = clientId;
-    process.env.GOOGLE_CLIENT_SECRET = clientSecret;
-
-  } catch (error) {
-    console.error('Error while debugging OAuth configuration:', error);
-    throw error;
-  }
-}
-
-// Debug OAuth configuration before app setup
-try {
-  debugCredentials();
-} catch (error) {
-  console.error('Failed to validate OAuth credentials:', error);
-  process.exit(1);
-}
-
 const app = express();
-
-// Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -106,14 +46,17 @@ app.use((req, res, next) => {
     // Verify database connection before setting up auth
     try {
       console.log('Verifying database connection...');
-      const result = await db.select().from(users).execute();
+      await db.select().from(users).limit(1).execute();
       console.log('Database connection verified successfully');
     } catch (dbError) {
       console.error('Database connection failed:', dbError);
       process.exit(1);
     }
 
-    // Add security middleware first
+    // Trust proxy is required for secure cookies and proper client IP detection
+    app.set("trust proxy", true);
+
+    // Add security middleware first (includes CORS)
     app.use(setupSecurity);
 
     // Set up authentication (includes session setup)
@@ -125,13 +68,7 @@ app.use((req, res, next) => {
       process.exit(1); // Exit if auth setup fails as it's critical
     }
 
-    // Health check endpoint
-    app.get('/health', (_req, res) => {
-      res.json({ status: 'ok' });
-    });
-
-    const PORT = 5000;
-    const HOST = '0.0.0.0';
+    // Register routes and create HTTP server
     const server = registerRoutes(app);
 
     // Error handling middleware should be after routes
@@ -151,31 +88,23 @@ app.use((req, res, next) => {
       log('Static file serving setup completed');
     }
 
-    // Start the server with detailed logging and error handling
-    const httpServer = server.listen(PORT, HOST, () => {
-      log(`Server is running on http://${HOST}:${PORT}`);
+    // Start the server with detailed logging
+    const PORT = 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      const replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      log(`Server is running on port ${PORT}`);
+      log(`External URL: ${replitUrl}`);
       log(`Environment: ${app.get("env")}`);
-      log(`Auth callback URL: ${process.env.NODE_ENV === "production" 
-        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
-        : "http://localhost:5000/auth/google/callback"}`);
+      log(`Auth callback URL: ${replitUrl}/auth/google/callback`);
     });
 
     // Handle server errors
-    httpServer.on('error', (error: any) => {
+    server.on('error', (error: any) => {
       console.error('Server error:', error);
       if (error.code === 'EADDRINUSE') {
         console.error(`Port ${PORT} is already in use`);
       }
       process.exit(1);
-    });
-
-    // Handle process termination
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM signal received: closing HTTP server');
-      httpServer.close(() => {
-        console.log('HTTP server closed');
-        process.exit(0);
-      });
     });
 
   } catch (error: unknown) {
