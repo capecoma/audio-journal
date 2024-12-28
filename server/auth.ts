@@ -6,6 +6,7 @@ import createMemoryStore from "memorystore";
 import { users } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+import type { User } from "@db/schema";
 
 // Fix recursive type reference by explicitly defining session user type
 declare global {
@@ -20,10 +21,54 @@ declare global {
   }
 }
 
+function validateAndCleanOAuthCredentials() {
+  // Get and clean credentials
+  const rawClientId = process.env.GOOGLE_CLIENT_ID;
+  const rawClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!rawClientId || !rawClientSecret) {
+    throw new Error("Missing OAuth credentials. Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set.");
+  }
+
+  // Clean credentials
+  const clientId = rawClientId.trim();
+  const clientSecret = rawClientSecret.trim();
+
+  // Log cleaned state without exposing sensitive data
+  console.log('OAuth Credentials validation:', {
+    clientId: {
+      length: clientId.length,
+      format: clientId.endsWith('.apps.googleusercontent.com')
+    },
+    clientSecret: {
+      length: clientSecret.length
+    }
+  });
+
+  // Validate client ID format
+  if (!clientId.endsWith('.apps.googleusercontent.com')) {
+    throw new Error("Invalid Google OAuth client ID format. Must end with .apps.googleusercontent.com");
+  }
+
+  // Validate lengths
+  if (clientId.length < 50) {
+    throw new Error("Client ID appears too short after cleaning");
+  }
+
+  if (clientSecret.length < 20) {
+    throw new Error("Client secret appears too short after cleaning");
+  }
+
+  return { clientId, clientSecret };
+}
+
 export function setupAuth(app: Express) {
   console.log('Starting authentication setup...');
 
-  // Set up session store
+  // Validate OAuth credentials
+  const { clientId, clientSecret } = validateAndCleanOAuthCredentials();
+
+  console.log('Setting up session middleware...');
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "repl-auth-secret",
@@ -31,39 +76,35 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      secure: true,
-      sameSite: 'none' // Required for cross-site authentication
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
   };
 
-  // Get callback URL (always use Replit URL)
-  const replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-  const callbackUrl = `${replitUrl}/auth/google/callback`;
+  if (app.get("env") === "production") {
+    console.log('Configuring for production environment...');
+    app.set("trust proxy", 1);
+  }
 
-  // Initialize session and passport
+  console.log('Initializing session and passport middleware...');
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Get and validate credentials
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const callbackURL = process.env.NODE_ENV === "production"
+    ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/google/callback`
+    : "http://localhost:5000/auth/google/callback";
 
-  if (!clientId || !clientSecret) {
-    console.error("Missing OAuth credentials");
-    return;
-  }
-
-  // Configure Google Strategy
+  console.log('Configuring Google OAuth strategy...');
   passport.use(
     new GoogleStrategy(
       {
         clientID: clientId,
         clientSecret: clientSecret,
-        callbackURL: callbackUrl,
+        callbackURL,
         proxy: true
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -74,7 +115,6 @@ export function setupAuth(app: Express) {
             email: profile.emails?.[0]?.value
           });
 
-          // Find or create user
           let [user] = await db
             .select()
             .from(users)
@@ -120,7 +160,6 @@ export function setupAuth(app: Express) {
     )
   );
 
-  // Serialize/Deserialize user
   passport.serializeUser((user, done) => {
     console.log('Serializing user:', user.id);
     done(null, user.id);
@@ -146,10 +185,17 @@ export function setupAuth(app: Express) {
   });
 
   // Auth routes
+  console.log('Setting up authentication routes...');
+
   app.get(
     "/auth/google",
     (req, res, next) => {
-      console.log('Starting Google OAuth flow from:', req.headers.referer);
+      console.log('Starting Google OAuth flow:', {
+        headers: {
+          origin: req.headers.origin,
+          referer: req.headers.referer
+        }
+      });
       next();
     },
     passport.authenticate("google", {
@@ -163,31 +209,38 @@ export function setupAuth(app: Express) {
     (req, res, next) => {
       console.log('Received OAuth callback:', {
         query: req.query,
-        error: req.query.error
+        error: req.query.error,
+        code: !!req.query.code
       });
       next();
     },
     passport.authenticate("google", {
       failureRedirect: "/login?error=auth_failed",
-      successReturnToOrRedirect: "/",
-    })
+      failureMessage: true,
+      successReturnToOrRedirect: "/"
+    }),
+    (req, res) => {
+      const user = req.user as Express.User;
+      console.log('OAuth authentication successful:', {
+        id: user.id,
+        username: user.username
+      });
+      res.redirect("/");
+    }
   );
 
   // Auth status endpoint
   app.get("/api/auth/status", (req, res) => {
+    const user = req.user as Express.User | undefined;
     res.json({
       isAuthenticated: req.isAuthenticated(),
-      user: req.user ? {
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email
+      user: user ? {
+        id: user.id,
+        username: user.username,
+        email: user.email
       } : null
     });
   });
 
-  console.log('Auth setup completed with config:', {
-    callbackUrl,
-    cookieSecure: sessionSettings.cookie?.secure,
-    cookieSameSite: sessionSettings.cookie?.sameSite
-  });
+  console.log('Authentication setup completed');
 }
