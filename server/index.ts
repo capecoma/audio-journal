@@ -7,6 +7,8 @@ import { db } from "@db";
 import { users } from "@db/schema";
 
 const app = express();
+
+// Basic middleware setup
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -43,35 +45,38 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection before setting up auth
-    try {
-      console.log('Verifying database connection...');
-      await db.select().from(users).limit(1).execute();
-      console.log('Database connection verified successfully');
-    } catch (dbError) {
-      console.error('Database connection failed:', dbError);
-      process.exit(1);
-    }
-
-    // Trust proxy is required for secure cookies and proper client IP detection
+    // Set trust proxy first
     app.set("trust proxy", true);
 
-    // Add security middleware first (includes CORS)
+    // Add security middleware (includes CORS)
     app.use(setupSecurity);
 
-    // Set up authentication (includes session setup)
+    // Verify database connection
     try {
-      setupAuth(app);
-      log('Authentication setup completed successfully');
-    } catch (error) {
-      console.error('Failed to setup authentication:', error);
-      process.exit(1); // Exit if auth setup fails as it's critical
+      log('Verifying database connection...');
+      await db.select().from(users).limit(1);
+      log('Database connection verified');
+    } catch (dbError) {
+      log('Database connection error:', dbError);
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
     }
 
-    // Register routes and create HTTP server
+    // Setup auth (includes session handling)
+    setupAuth(app);
+
+    // Create HTTP server
     const server = registerRoutes(app);
 
-    // Error handling middleware should be after routes
+    // Setup Vite in development
+    if (process.env.NODE_ENV !== 'production') {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    // Error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       console.error('Server error:', err);
       const status = err.status || err.statusCode || 500;
@@ -79,26 +84,17 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
-    // Setup Vite or serve static files based on environment
-    if (app.get("env") === "development") {
-      await setupVite(app, server);
-      log('Vite middleware setup completed');
-    } else {
-      serveStatic(app);
-      log('Static file serving setup completed');
-    }
-
-    // Start the server with detailed logging
+    // Start server
     const PORT = 5000;
     server.listen(PORT, "0.0.0.0", () => {
       const replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-      log(`Server is running on port ${PORT}`);
+      log(`Server started on port ${PORT}`);
       log(`External URL: ${replitUrl}`);
       log(`Environment: ${app.get("env")}`);
-      log(`Auth callback URL: ${replitUrl}/auth/google/callback`);
+      log(`Auth callback URL: ${replitUrl}/auth/google/callback`); //Re-added from original, likely needed for auth callback.
     });
 
-    // Handle server errors
+    // Handle server errors (Retained from original)
     server.on('error', (error: any) => {
       console.error('Server error:', error);
       if (error.code === 'EADDRINUSE') {
@@ -107,8 +103,8 @@ app.use((req, res, next) => {
       process.exit(1);
     });
 
-  } catch (error: unknown) {
-    console.error("Failed to start server:", error instanceof Error ? error.message : String(error));
+  } catch (error) {
+    console.error("Server startup error:", error);
     process.exit(1);
   }
 })();
