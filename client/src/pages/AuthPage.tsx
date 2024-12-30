@@ -16,7 +16,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const authSchema = z.object({
-  username: z.string().email("Must be a valid email"),
+  email: z.string().email("Must be a valid email"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -34,7 +35,7 @@ type NewPasswordForm = z.infer<typeof newPasswordSchema>;
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register" | "reset" | "new-password">("login");
-  const { login, register, requestPasswordReset, resetPassword } = useUser();
+  const { login, register: registerUser, requestPasswordReset, resetPassword } = useUser();
   const { toast } = useToast();
   const [resetToken, setResetToken] = useState<string | null>(null);
 
@@ -65,7 +66,11 @@ export default function AuthPage() {
   const onSubmit = async (data: AuthForm) => {
     try {
       if (mode === "login") {
-        const result = await login(data);
+        const result = await login({
+          username: data.username,
+          email: data.email,
+          password: data.password,
+        });
         if (!result.ok) {
           toast({
             title: "Error",
@@ -74,7 +79,11 @@ export default function AuthPage() {
           });
         }
       } else {
-        const result = await register(data);
+        const result = await registerUser({
+          username: data.username,
+          email: data.email,
+          password: data.password,
+        });
         if (!result.ok) {
           toast({
             title: "Error",
@@ -118,7 +127,7 @@ export default function AuthPage() {
 
   const onNewPasswordSubmit = async (data: NewPasswordForm) => {
     if (!resetToken) return;
-    
+
     try {
       const result = await resetPassword({ token: resetToken, newPassword: data.password });
       if (result.ok) {
@@ -165,15 +174,28 @@ export default function AuthPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <Input
-                  {...registerForm("username")}
+                  {...registerForm("email")}
                   type="email"
                   placeholder="Email"
-                  className={errors.username ? "border-destructive" : ""}
+                  className={errors.email ? "border-destructive" : ""}
                 />
-                {errors.username && (
-                  <p className="text-sm text-destructive mt-1">{errors.username.message}</p>
+                {errors.email && (
+                  <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
                 )}
               </div>
+              {mode === "register" && (
+                <div>
+                  <Input
+                    {...registerForm("username")}
+                    type="text"
+                    placeholder="Username"
+                    className={errors.username ? "border-destructive" : ""}
+                  />
+                  {errors.username && (
+                    <p className="text-sm text-destructive mt-1">{errors.username.message}</p>
+                  )}
+                </div>
+              )}
               <div>
                 <Input
                   {...registerForm("password")}
