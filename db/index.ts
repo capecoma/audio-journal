@@ -1,7 +1,7 @@
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import ws from "ws";
 import * as schema from "@db/schema";
+import ws from 'ws';
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -9,13 +9,35 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Configure neon to use WebSocket protocol
+// Configure WebSocket for Neon
 neonConfig.webSocketConstructor = ws;
-const sql = neon(process.env.DATABASE_URL);
+
+// Initialize database connection
+let sql;
+try {
+  sql = neon(process.env.DATABASE_URL);
+} catch (error) {
+  console.error("Failed to initialize database connection:", error);
+  process.exit(1);
+}
+
+// Create db instance with schema
 export const db = drizzle(sql, { schema });
+
+// Test the connection
+(async () => {
+  try {
+    // Simple query to test connection
+    await sql`SELECT 1`;
+    console.log("Database connection initialized successfully");
+  } catch (error) {
+    console.error("Failed to test database connection:", error);
+    process.exit(1);
+  }
+})();
 
 // Handle cleanup on application shutdown
 process.on('SIGINT', () => {
-  console.log('Database connection closed');
+  console.log('Cleaning up database connection...');
   process.exit(0);
 });

@@ -52,6 +52,16 @@ app.use((req, res, next) => {
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on http://0.0.0.0:${PORT}`);
     });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM signal received: closing HTTP server');
+      server.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+      });
+    });
+
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
