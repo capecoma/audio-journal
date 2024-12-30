@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MicIcon, BarChart2, Menu, LogOut } from "lucide-react";
+import { MicIcon, BarChart2, Menu } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -99,8 +99,7 @@ export default function Navigation() {
                 onClick={handleLogout}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline-block">Logout</span>
+                <span className="sm:inline-block">Logout</span>
               </Button>
             </div>
           )}
