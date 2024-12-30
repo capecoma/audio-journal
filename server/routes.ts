@@ -238,6 +238,203 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add new endpoint for comprehensive analytics
+  app.get("/api/analytics/comprehensive", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+
+      // Fetch entries for analysis
+      const recentEntries = await db.query.entries.findMany({
+        where: and(
+          eq(entries.userId, userId),
+          gte(entries.createdAt, thirtyDaysAgo)
+        ),
+        orderBy: [desc(entries.createdAt)]
+      });
+
+      if (!recentEntries.length) {
+        return res.json({
+          featureUsage: [],
+          dailyStats: [],
+          emotionDistribution: [],
+          topTopics: [],
+          weeklyActivity: [],
+          insightHighlights: [],
+          timeOfDayAnalysis: [],
+          wordCountTrends: [],
+          topicConnections: [],
+          reflectionDepth: []
+        });
+      }
+
+      // Process entries by day for daily stats
+      const entriesByDay = new Map<string, number>();
+      recentEntries.forEach(entry => {
+        const day = format(new Date(entry.createdAt), 'yyyy-MM-dd');
+        entriesByDay.set(day, (entriesByDay.get(day) || 0) + 1);
+      });
+
+      // Calculate daily stats
+      const dailyStats = Array.from(entriesByDay.entries()).map(([date, count]) => ({
+        date,
+        count
+      })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Process emotion distribution
+      const emotionCategories = ['Very Positive', 'Positive', 'Neutral', 'Negative', 'Very Negative'];
+      const emotionDistribution = emotionCategories.map(emotion => ({
+        emotion,
+        count: recentEntries.filter(entry => {
+          const sentiment = entry.aiAnalysis?.sentiment ?? 3;
+          const category =
+            sentiment >= 4.5 ? 'Very Positive' :
+              sentiment >= 3.5 ? 'Positive' :
+                sentiment >= 2.5 ? 'Neutral' :
+                  sentiment >= 1.5 ? 'Negative' : 'Very Negative';
+          return category === emotion;
+        }).length
+      }));
+
+      // Calculate time of day analysis
+      const timeOfDayAnalysis = Array.from({ length: 24 }, (_, hour) => {
+        const entriesAtHour = recentEntries.filter(entry => {
+          const entryHour = new Date(entry.createdAt).getHours();
+          return entryHour === hour;
+        });
+
+        return {
+          hour,
+          entryCount: entriesAtHour.length,
+          averageDuration: entriesAtHour.length ?
+            entriesAtHour.reduce((acc, entry) => acc + (entry.duration || 0), 0) / entriesAtHour.length :
+            0
+        };
+      });
+
+      // Calculate word count trends
+      const wordCountTrends = dailyStats.map(({ date }) => ({
+        date,
+        wordCount: recentEntries
+          .filter(entry => format(new Date(entry.createdAt), 'yyyy-MM-dd') === date)
+          .reduce((acc, entry) => acc + (entry.transcript?.split(/\s+/).length || 0), 0)
+      }));
+
+      // Calculate reflection depth based on AI analysis
+      const calculateReflectionDepth = (entry: any) => {
+        const hasEmotions = entry.aiAnalysis?.sentiment !== undefined;
+        const hasTopics = Array.isArray(entry.aiAnalysis?.topics) && entry.aiAnalysis.topics.length > 0;
+        const hasInsights = Array.isArray(entry.aiAnalysis?.insights) && entry.aiAnalysis.insights.length > 0;
+        const wordCount = entry.transcript?.split(/\s+/).length || 0;
+
+        let depth = 1; // Base level
+        if (hasEmotions) depth += 1;
+        if (hasTopics) depth += 1;
+        if (hasInsights) depth += 1;
+        if (wordCount > 200) depth += 1;
+
+        return Math.min(5, depth);
+      };
+
+      const reflectionDepth = dailyStats.map(({ date }) => ({
+        date,
+        depth: recentEntries
+          .filter(entry => format(new Date(entry.createdAt), 'yyyy-MM-dd') === date)
+          .reduce((acc, entry) => Math.max(acc, calculateReflectionDepth(entry)), 1)
+      }));
+
+      // Process topics and their relationships
+      const topicFrequency = new Map<string, { count: number; relatedTopics: Map<string, number> }>();
+      recentEntries.forEach(entry => {
+        const topics = entry.aiAnalysis?.topics || [];
+        topics.forEach(topic => {
+          if (!topicFrequency.has(topic)) {
+            topicFrequency.set(topic, { count: 0, relatedTopics: new Map() });
+          }
+          const topicData = topicFrequency.get(topic)!;
+          topicData.count++;
+
+          // Track related topics (co-occurrence)
+          topics.forEach(relatedTopic => {
+            if (relatedTopic !== topic) {
+              topicData.relatedTopics.set(
+                relatedTopic,
+                (topicData.relatedTopics.get(relatedTopic) || 0) + 1
+              );
+            }
+          });
+        });
+      });
+
+      // Format topic data
+      const topTopics = Array.from(topicFrequency.entries())
+        .map(([topic, data]) => ({
+          topic,
+          count: data.count
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      const topicConnections = Array.from(topicFrequency.entries())
+        .map(([topic, data]) => ({
+          topic,
+          relatedTopics: Array.from(data.relatedTopics.entries())
+            .map(([name, strength]) => ({ name, strength }))
+            .sort((a, b) => b.strength - a.strength)
+            .slice(0, 5)
+        }))
+        .slice(0, 10);
+
+      // Extract meaningful insights
+      const insightHighlights = recentEntries
+        .filter(entry => entry.aiAnalysis?.insights?.length)
+        .flatMap(entry => (entry.aiAnalysis?.insights || []).map(insight => ({
+          date: entry.createdAt,
+          insight,
+          impact: calculateReflectionDepth(entry) * 2
+        })))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 10);
+
+      // Calculate weekly activity and sentiment
+      const weeklyActivity = Array.from({ length: 4 }, (_, i) => {
+        const weekStart = subDays(new Date(), (i + 1) * 7).toISOString();
+        const weekEnd = subDays(new Date(), i * 7).toISOString();
+
+        const weekEntries = recentEntries.filter(entry =>
+          entry.createdAt >= weekStart && entry.createdAt < weekEnd
+        );
+
+        return {
+          week: format(new Date(weekStart), 'MMM d'),
+          journalCount: weekEntries.length,
+          averageSentiment: weekEntries.length ?
+            weekEntries.reduce((acc, entry) => acc + (entry.aiAnalysis?.sentiment || 3), 0) / weekEntries.length :
+            0
+        };
+      }).reverse();
+
+      res.json({
+        featureUsage: [], // Reserved for future feature usage tracking
+        dailyStats,
+        emotionDistribution,
+        topTopics,
+        weeklyActivity,
+        insightHighlights,
+        timeOfDayAnalysis,
+        wordCountTrends,
+        topicConnections,
+        reflectionDepth
+      });
+    } catch (error: any) {
+      console.error("Error generating comprehensive analytics:", error);
+      res.status(500).json({
+        error: "Failed to generate analytics",
+        details: error.message
+      });
+    }
+  });
+
   // Helper functions with proper typing
   function calculateEmotionalStability(entries: ProcessedEntry[]): number {
     const emotions = entries
@@ -246,9 +443,9 @@ export function registerRoutes(app: Express): Server {
 
     return emotions.length > 1
       ? 1 - Math.min(1, (emotions.reduce((sum, curr, idx, arr) => {
-          if (idx === 0) return 0;
-          return sum + Math.abs(curr - arr[idx - 1]);
-        }, 0) / (emotions.length - 1)) / 4)
+        if (idx === 0) return 0;
+        return sum + Math.abs(curr - arr[idx - 1]);
+      }, 0) / (emotions.length - 1)) / 4)
       : 1;
   }
 
