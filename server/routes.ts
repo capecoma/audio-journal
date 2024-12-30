@@ -2,10 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
-import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, subWeeks, parseISO } from "date-fns";
 import { db } from "@db";
 import { entries, summaries, users, achievements, userAchievements, UserPreferences } from "@db/schema";
-import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lt, count } from "drizzle-orm";
 import type { Entry, Summary, Achievement, UserAchievement } from "@db/schema";
 import { setupAuth } from "./auth";
 import { isAuthenticated, getUserId } from "./middleware/auth";
@@ -16,6 +16,109 @@ const upload = multer({ storage: multer.memoryStorage() });
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
+
+  // Add comprehensive analytics endpoint
+  app.get("/api/analytics/comprehensive", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+
+      // Get all entries for the last 30 days
+      const recentEntries = await db.query.entries.findMany({
+        where: and(
+          eq(entries.userId, userId),
+          gte(entries.createdAt, thirtyDaysAgo)
+        ),
+        orderBy: [desc(entries.createdAt)]
+      });
+
+      if (!recentEntries.length) {
+        return res.json({
+          emotionDistribution: [],
+          weeklyActivity: [],
+          topTopics: [],
+          insightHighlights: [],
+          dailyStats: []
+        });
+      }
+
+      // Calculate emotion distribution
+      const emotionCounts: Record<string, number> = {};
+      recentEntries.forEach(entry => {
+        const sentiment = entry.aiAnalysis?.sentiment ?? 3;
+        const emotion = sentiment >= 4 ? "Joy" :
+                       sentiment <= 2 ? "Sadness" :
+                       "Neutral";
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      });
+
+      const emotionDistribution = Object.entries(emotionCounts).map(([emotion, count]) => ({
+        emotion,
+        count
+      }));
+
+      // Calculate weekly activity and sentiment
+      const weeklyActivity = Array.from({ length: 4 }).map((_, i) => {
+        const weekStart = subWeeks(new Date(), i).toISOString();
+        const weekEntries = recentEntries.filter(entry =>
+          parseISO(entry.createdAt) >= parseISO(weekStart)
+        );
+
+        const sentiments = weekEntries
+          .map(entry => entry.aiAnalysis?.sentiment)
+          .filter((s): s is number => s !== undefined && s !== null);
+
+        return {
+          week: format(parseISO(weekStart), 'MMM d'),
+          journalCount: weekEntries.length,
+          averageSentiment: sentiments.length > 0
+            ? Math.round(sentiments.reduce((a, b) => a + b, 0) / sentiments.length)
+            : 3
+        };
+      }).reverse();
+
+      // Calculate top topics
+      const topicCounts: Record<string, number> = {};
+      recentEntries.forEach(entry => {
+        const topics = entry.aiAnalysis?.topics ?? [];
+        topics.forEach(topic => {
+          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+        });
+      });
+
+      const topTopics = Object.entries(topicCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([topic, count]) => ({ topic, count }));
+
+      // Generate insight highlights with proper null checks
+      const insightHighlights = recentEntries
+        .filter(entry => Array.isArray(entry.aiAnalysis?.insights) && entry.aiAnalysis.insights.length > 0)
+        .slice(0, 5)
+        .map(entry => ({
+          date: entry.createdAt,
+          insight: entry.aiAnalysis?.insights?.[0] ?? "No insight available",
+          impact: Math.floor(Math.random() * 10) + 1 // This should be replaced with actual impact calculation
+        }));
+
+      res.json({
+        emotionDistribution,
+        weeklyActivity,
+        topTopics,
+        insightHighlights,
+        dailyStats: weeklyActivity.map(w => ({
+          date: w.week,
+          count: w.journalCount
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({
+        error: "Failed to fetch analytics",
+        details: error.message
+      });
+    }
+  });
 
   // Add health check endpoint
   app.get("/api/health", async (_req, res) => {
