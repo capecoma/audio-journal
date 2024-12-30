@@ -8,6 +8,7 @@ import { entries, summaries } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 import { setupAuth } from "./auth";
+import { isAuthenticated, getUserId } from "./middleware/auth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -30,11 +31,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Basic entries route
-  app.get("/api/entries", async (_req, res) => {
+  // Protected entries route
+  app.get("/api/entries", isAuthenticated, async (req, res) => {
     try {
-      console.log('Attempting to fetch entries from database...');
+      const userId = getUserId(req);
+      console.log('Attempting to fetch entries from database for user:', userId);
       const allEntries = await db.query.entries.findMany({
+        where: eq(entries.userId, userId),
         orderBy: [desc(entries.createdAt)]
       });
       console.log(`Successfully fetched ${allEntries.length} entries`);
@@ -49,11 +52,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get daily summaries route
-  app.get("/api/summaries/daily", async (_req, res) => {
+  // Protected summaries route
+  app.get("/api/summaries/daily", isAuthenticated, async (req, res) => {
     try {
-      console.log('Attempting to fetch daily summaries...');
+      const userId = getUserId(req);
+      console.log('Attempting to fetch daily summaries for user:', userId);
       const allSummaries = await db.query.summaries.findMany({
+        where: eq(summaries.userId, userId),
         orderBy: [desc(summaries.date)]
       });
       console.log(`Successfully fetched ${allSummaries.length} summaries`);
@@ -68,9 +73,11 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Upload and transcribe route
-  app.post("/api/entries/upload", upload.single("audio"), async (req, res) => {
+  // Protected upload and transcribe route
+  app.post("/api/entries/upload", isAuthenticated, upload.single("audio"), async (req, res) => {
     try {
+      const userId = getUserId(req);
+
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
@@ -98,6 +105,7 @@ export function registerRoutes(app: Express): Server {
       // Insert new entry
       const [entry] = await db.insert(entries)
         .values({
+          userId,
           audioUrl,
           transcript,
           tags,
@@ -122,6 +130,7 @@ export function registerRoutes(app: Express): Server {
         .from(entries)
         .where(
           and(
+            eq(entries.userId, userId),
             gte(entries.createdAt, todayStart),
             lt(entries.createdAt, todayEnd)
           )
@@ -169,6 +178,7 @@ export function registerRoutes(app: Express): Server {
           .from(summaries)
           .where(
             and(
+              eq(summaries.userId, userId),
               gte(summaries.date, todayStart),
               lt(summaries.date, todayEnd)
             )
@@ -187,6 +197,7 @@ export function registerRoutes(app: Express): Server {
         } else {
           await db.insert(summaries)
             .values({
+              userId,
               date: todayStart,
               highlightText: summaryText,
               createdAt: currentDate,
