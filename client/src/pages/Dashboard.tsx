@@ -64,10 +64,10 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-background">
       <Navigation />
       <main className={cn(
-        "flex-1 pt-14",
+        "flex-1",
         !isMobile && "md:pl-[240px]"
       )}>
-        <div className="container mx-auto px-3 py-4 space-y-4 max-w-7xl sm:px-4 sm:py-6 sm:space-y-6">
+        <div className="container mx-auto py-4 px-4 space-y-4 max-w-7xl">
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -91,11 +91,11 @@ export default function Dashboard() {
           </div>
 
           {/* Content Grid */}
-          <div className="space-y-4 sm:space-y-6">
-            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border/40 bg-background p-4">
               <DailySummary summaries={summaries} />
             </div>
-            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
+            <div className="rounded-lg border border-border/40 bg-background p-4">
               <EntryList 
                 entries={entries} 
                 onPlay={handlePlayEntry}
