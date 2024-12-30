@@ -1,10 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
+import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { db } from "@db";
-import { entries, summaries, users } from "@db/schema"; // Added import for users
+import { entries, summaries, users } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 import { setupAuth } from "./auth";
@@ -224,6 +224,67 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({
         error: error.message || "Failed to process entry",
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  });
+
+  // Add new endpoints for AI-powered journaling insights
+  app.get("/api/prompts/reflection", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+
+      // Get recent entries for context
+      const recentEntries = await db.query.entries.findMany({
+        where: and(
+          eq(entries.userId, userId),
+          gte(entries.createdAt, subDays(new Date(), 7).toISOString())
+        ),
+        orderBy: [desc(entries.createdAt)],
+        limit: 5
+      });
+
+      const entriesWithSentiment = recentEntries.map(entry => ({
+        transcript: entry.transcript || "",
+        sentiment: entry.aiAnalysis?.sentiment || 3
+      }));
+
+      const prompt = await generateReflectionPrompt(entriesWithSentiment);
+      res.json({ prompt });
+    } catch (error: any) {
+      console.error("Error generating reflection prompt:", error);
+      res.status(500).json({
+        error: "Failed to generate reflection prompt",
+        details: error.message
+      });
+    }
+  });
+
+  app.get("/api/insights/patterns", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+
+      // Get entries from the last 30 days
+      const entries = await db.query.entries.findMany({
+        where: and(
+          eq(entries.userId, userId),
+          gte(entries.createdAt, subDays(new Date(), 30).toISOString())
+        ),
+        orderBy: [desc(entries.createdAt)]
+      });
+
+      const entriesForAnalysis = entries.map(entry => ({
+        transcript: entry.transcript || "",
+        createdAt: entry.createdAt,
+        sentiment: entry.aiAnalysis?.sentiment || 3
+      }));
+
+      const analysis = await analyzeJournalingPatterns(entriesForAnalysis);
+      res.json(analysis);
+    } catch (error: any) {
+      console.error("Error analyzing journaling patterns:", error);
+      res.status(500).json({
+        error: "Failed to analyze journaling patterns",
+        details: error.message
       });
     }
   });

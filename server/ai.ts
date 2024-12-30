@@ -150,3 +150,91 @@ Please format the summary in a clear, readable way with bullet points for key ta
     throw new Error("Failed to generate summary");
   }
 }
+
+// New functions for journaling insights and prompts
+
+export async function generateReflectionPrompt(
+  recentEntries: { transcript: string; sentiment: number }[]
+): Promise<string> {
+  try {
+    const entriesContext = recentEntries
+      .map(entry => `Entry: ${entry.transcript}\nSentiment: ${entry.sentiment}`)
+      .join('\n\n');
+
+    const prompt = `Based on these recent journal entries, generate a thoughtful reflection prompt that encourages deeper introspection and personal growth:
+
+${entriesContext}
+
+Generate a prompt that:
+1. Relates to themes or patterns in these entries
+2. Encourages deeper emotional awareness
+3. Promotes personal growth and self-reflection
+4. Is specific yet open-ended
+
+Return only the prompt question, no additional commentary.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 150,
+    });
+
+    return response.choices[0].message.content ?? 'What moments from today made you feel most alive?';
+  } catch (error) {
+    console.error("Error generating reflection prompt:", error);
+    return "What moments from today made you feel most alive?";
+  }
+}
+
+export async function analyzeJournalingPatterns(
+  entries: { transcript: string; createdAt: string; sentiment: number }[]
+): Promise<{
+  patterns: string[];
+  suggestions: string[];
+  consistencyScore: number;
+}> {
+  try {
+    const entriesData = entries.map(entry => ({
+      content: entry.transcript,
+      date: entry.createdAt,
+      sentiment: entry.sentiment,
+    }));
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "Analyze journaling patterns and provide insights in JSON format with: patterns (array of observed patterns), suggestions (array of improvement suggestions), and consistencyScore (1-10 rating of journaling consistency)."
+        },
+        {
+          role: "user",
+          content: JSON.stringify(entriesData)
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("No content in response");
+    }
+
+    const analysis = JSON.parse(content);
+    return {
+      patterns: analysis.patterns || [],
+      suggestions: analysis.suggestions || [],
+      consistencyScore: Math.min(10, Math.max(1, analysis.consistencyScore || 5))
+    };
+  } catch (error) {
+    console.error("Error analyzing journaling patterns:", error);
+    return {
+      patterns: [],
+      suggestions: ["Try to journal at regular intervals", "Include both events and feelings"],
+      consistencyScore: 5
+    };
+  }
+}
