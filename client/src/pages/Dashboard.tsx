@@ -71,17 +71,21 @@ export default function Dashboard() {
       )}>
         <div className="container mx-auto p-4 space-y-6 max-w-7xl">
           {/* Header */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 rounded-lg bg-card border">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-card border p-4 sm:p-6">
             <div>
-              <h2 className="text-lg font-medium">Welcome Back</h2>
-              <p className="text-sm text-muted-foreground">
-                You have recorded {entries.length} journal entries
+              <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
+                You have recorded {entries.length} journal {entries.length === 1 ? 'entry' : 'entries'}
               </p>
             </div>
             <div className="flex-shrink-0">
               <Link href="/journal">
-                <Button variant="default" className="w-full sm:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button 
+                  variant="default" 
+                  className="w-full sm:w-auto min-h-[44px] text-base"
+                  size={isMobile ? "lg" : "default"}
+                >
+                  <Plus className="mr-2 h-5 w-5" />
                   New Entry
                 </Button>
               </Link>
@@ -89,14 +93,18 @@ export default function Dashboard() {
           </div>
 
           {/* Content Grid */}
-          <div className="space-y-6">
-            <DailySummary summaries={summaries} />
-            <EntryList 
-              entries={entries} 
-              onPlay={handlePlayEntry}
-              onSearch={setSearchQuery}
-              searchQuery={searchQuery}
-            />
+          <div className="space-y-6 sm:space-y-8">
+            <div className="rounded-lg border bg-card p-4 sm:p-6">
+              <DailySummary summaries={summaries} />
+            </div>
+            <div className="rounded-lg border bg-card p-4 sm:p-6">
+              <EntryList 
+                entries={entries} 
+                onPlay={handlePlayEntry}
+                onSearch={setSearchQuery}
+                searchQuery={searchQuery}
+              />
+            </div>
           </div>
         </div>
       </main>
