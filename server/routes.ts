@@ -4,9 +4,9 @@ import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { db } from "@db";
-import { entries, summaries, users } from "@db/schema";
+import { entries, summaries, users, achievements, userAchievements } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
-import type { Entry, Summary } from "@db/schema";
+import type { Entry, Summary, Achievement, UserAchievement } from "@db/schema";
 import { setupAuth } from "./auth";
 import { isAuthenticated, getUserId } from "./middleware/auth";
 
@@ -26,6 +26,118 @@ export function registerRoutes(app: Express): Server {
       console.error("Health check failed:", error);
       res.status(500).json({ 
         status: "unhealthy", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get all achievements with user progress
+  app.get("/api/achievements", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      console.log('Fetching achievements for user:', userId);
+
+      // Get all achievements
+      const allAchievements = await db.query.achievements.findMany({
+        orderBy: [desc(achievements.createdAt)]
+      });
+
+      // Get user's achievement progress
+      const userProgress = await db.query.userAchievements.findMany({
+        where: eq(userAchievements.userId, userId)
+      });
+
+      // Map user progress to achievements
+      const achievementsWithProgress = allAchievements.map(achievement => {
+        const progress = userProgress.find(p => p.achievementId === achievement.id);
+        return {
+          ...achievement,
+          userProgress: progress ? {
+            earnedAt: progress.earnedAt,
+            progress: progress.progress
+          } : undefined
+        };
+      });
+
+      res.json(achievementsWithProgress);
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error fetching achievements:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch achievements", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update achievement progress
+  app.post("/api/achievements/:id/progress", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const achievementId = parseInt(req.params.id);
+      const { progress } = req.body;
+
+      if (!progress || typeof progress.current !== 'number' || typeof progress.target !== 'number') {
+        return res.status(400).json({ error: "Invalid progress data" });
+      }
+
+      // Get the achievement
+      const achievement = await db.query.achievements.findFirst({
+        where: eq(achievements.id, achievementId)
+      });
+
+      if (!achievement) {
+        return res.status(404).json({ error: "Achievement not found" });
+      }
+
+      // Calculate progress percentage
+      const percent = Math.min(100, (progress.current / progress.target) * 100);
+
+      // Update or create user achievement progress
+      const existingProgress = await db.query.userAchievements.findFirst({
+        where: and(
+          eq(userAchievements.userId, userId),
+          eq(userAchievements.achievementId, achievementId)
+        )
+      });
+
+      if (existingProgress) {
+        const [updated] = await db
+          .update(userAchievements)
+          .set({
+            progress: {
+              current: progress.current,
+              target: progress.target,
+              percent
+            },
+            ...(percent >= 100 && !existingProgress.earnedAt ? { earnedAt: new Date().toISOString() } : {})
+          })
+          .where(eq(userAchievements.id, existingProgress.id))
+          .returning();
+
+        res.json(updated);
+      } else {
+        const [created] = await db
+          .insert(userAchievements)
+          .values({
+            userId,
+            achievementId,
+            progress: {
+              current: progress.current,
+              target: progress.target,
+              percent
+            },
+            earnedAt: percent >= 100 ? new Date().toISOString() : null
+          })
+          .returning();
+
+        res.json(created);
+      }
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error updating achievement progress:", error);
+      res.status(500).json({ 
+        error: "Failed to update achievement progress", 
         details: error.message 
       });
     }

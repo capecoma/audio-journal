@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MicIcon, BarChart2, Menu } from "lucide-react";
+import { MicIcon, BarChart2, Menu, LogOut, Trophy } from "lucide-react";
 import {
   Drawer,
   DrawerClose,
@@ -25,6 +25,7 @@ export default function Navigation() {
     { href: "/", label: "Dashboard", icon: BarChart2 },
     { href: "/journal", label: "Record", icon: MicIcon },
     { href: "/analytics", label: "Analytics", icon: BarChart2 },
+    { href: "/achievements", label: "Achievements", icon: Trophy },
   ];
 
   const handleLogout = async () => {
@@ -60,7 +61,7 @@ export default function Navigation() {
   return (
     <>
       {/* Fixed Top Navigation */}
-      <header className="fixed top-0 left-0 right-0 h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
+      <header className="fixed top-0 left-0 right-0 h-12 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
         <div className="container h-full flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             {isMobile ? (
@@ -95,11 +96,12 @@ export default function Navigation() {
               </span>
               <Button 
                 variant="ghost" 
-                size="sm" 
+                size="icon"
                 onClick={handleLogout}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <span className="sm:inline-block">Logout</span>
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Logout</span>
               </Button>
             </div>
           )}
@@ -108,7 +110,7 @@ export default function Navigation() {
 
       {/* Desktop Side Navigation */}
       {!isMobile && (
-        <aside className="fixed left-0 top-14 z-30 hidden h-[calc(100vh-3.5rem)] w-[240px] border-r border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:block">
+        <aside className="fixed left-0 top-12 z-30 hidden h-[calc(100vh-3rem)] w-[240px] border-r border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:block">
           <div className="flex flex-col gap-2 p-4">
             <NavContent />
           </div>

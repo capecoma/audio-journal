@@ -11,6 +11,7 @@ import AuthPage from "./pages/AuthPage";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Journal = lazy(() => import("./pages/Journal"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+const Achievements = lazy(() => import("./pages/Achievements"));
 
 // Loading fallback component
 function LoadingPage() {
@@ -41,16 +42,14 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navigation />
-
-      {/* Main content area */}
-      <main className="flex-1 md:pl-[240px] pt-14">
-        <div className="container max-w-[1600px] mx-auto">
-          {/* Page content */}
+      <main className="flex-1 md:pl-[240px] pt-12">
+        <div className="container max-w-[1600px] mx-auto p-4">
           <Suspense fallback={<LoadingPage />}>
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/journal" component={Journal} />
               <Route path="/analytics" component={Analytics} />
+              <Route path="/achievements" component={Achievements} />
               <Route component={NotFound} />
             </Switch>
           </Suspense>
@@ -62,7 +61,7 @@ function App() {
 
 function NotFound() {
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] w-full flex items-center justify-center">
+    <div className="min-h-[calc(100vh-3rem)] w-full flex items-center justify-center">
       <Card className="w-full max-w-md mx-4">
         <CardContent className="pt-6 space-y-4">
           <div className="flex items-center gap-2">

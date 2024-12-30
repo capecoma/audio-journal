@@ -3,6 +3,7 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Keep existing user table definition
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -10,24 +11,66 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
   preferences: jsonb("preferences").default({ aiJournalingEnabled: false }).notNull(),
+  googleId: text("google_id"),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),
 });
 
+// Define progress type for achievements
+export const achievementProgressSchema = z.object({
+  current: z.number(),
+  target: z.number(),
+  percent: z.number(),
+});
+
+export type AchievementProgress = z.infer<typeof achievementProgressSchema>;
+
+// Achievement table definition
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  icon: text("icon").notNull(),
+  criteria: jsonb("criteria").notNull(),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+});
+
+// User achievements table with proper progress type
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
+  earnedAt: timestamp("earned_at", { mode: 'string' }),
+  progress: jsonb("progress").$type<AchievementProgress>().default({
+    current: 0,
+    target: 100,
+    percent: 0
+  }).notNull(),
+});
+
+// Relations definitions
 export const usersRelations = relations(users, ({ many }) => ({
   entries: many(entries),
-  summaries: many(summaries)
+  summaries: many(summaries),
+  userAchievements: many(userAchievements)
 }));
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
+export const achievementsRelations = relations(achievements, ({ many }) => ({
+  userAchievements: many(userAchievements)
+}));
 
-export const insertUserSchema = createInsertSchema(users, {
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Must be a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters")
-});
+export const userAchievementsRelations = relations(userAchievements, ({ one }) => ({
+  user: one(users, {
+    fields: [userAchievements.userId],
+    references: [users.id],
+  }),
+  achievement: one(achievements, {
+    fields: [userAchievements.achievementId],
+    references: [achievements.id],
+  }),
+}));
 
-export const selectUserSchema = createSelectSchema(users);
-
+// Keep existing entries and summaries tables
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
@@ -69,12 +112,30 @@ export const summariesRelations = relations(summaries, ({ one }) => ({
   }),
 }));
 
+// Export types and schemas
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
 export type Summary = typeof summaries.$inferSelect;
 export type InsertSummary = typeof summaries.$inferInsert;
+export type Achievement = typeof achievements.$inferSelect;
+export type InsertAchievement = typeof achievements.$inferInsert;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type InsertUserAchievement = typeof userAchievements.$inferInsert;
 
+// Schema validation
+export const insertUserSchema = createInsertSchema(users, {
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Must be a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+export const selectUserSchema = createSelectSchema(users);
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
 export const insertSummarySchema = createInsertSchema(summaries);
 export const selectSummarySchema = createSelectSchema(summaries);
+export const insertAchievementSchema = createInsertSchema(achievements);
+export const selectAchievementSchema = createSelectSchema(achievements);
+export const insertUserAchievementSchema = createInsertSchema(userAchievements);
+export const selectUserAchievementSchema = createSelectSchema(userAchievements);

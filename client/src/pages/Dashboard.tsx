@@ -6,7 +6,6 @@ import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
-import Navigation from "@/components/layout/Navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { Summary } from "@db/schema";
@@ -61,51 +60,43 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Navigation />
-      <main className={cn(
-        "flex-1",
-        !isMobile && "md:pl-[240px]"
-      )}>
-        <div className="container mx-auto py-4 px-4 space-y-4 max-w-7xl">
-          {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
-              <p className="text-sm sm:text-base text-muted-foreground mt-1">
-                You have recorded {entries.length} journal {entries.length === 1 ? 'entry' : 'entries'}
-              </p>
-            </div>
-            <div className="flex-shrink-0">
-              <Link href="/journal">
-                <Button 
-                  variant="default" 
-                  className="w-full sm:w-auto min-h-[44px] text-base"
-                  size={isMobile ? "lg" : "default"}
-                >
-                  <Plus className="mr-2 h-5 w-5" />
-                  New Entry
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Content Grid */}
-          <div className="space-y-4">
-            <div className="rounded-lg border border-border/40 bg-background p-4">
-              <DailySummary summaries={summaries} />
-            </div>
-            <div className="rounded-lg border border-border/40 bg-background p-4">
-              <EntryList 
-                entries={entries} 
-                onPlay={handlePlayEntry}
-                onSearch={setSearchQuery}
-                searchQuery={searchQuery}
-              />
-            </div>
-          </div>
+    <div className="container mx-auto pt-3 px-4 space-y-4 max-w-7xl">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            You have recorded {entries.length} journal {entries.length === 1 ? 'entry' : 'entries'}
+          </p>
         </div>
-      </main>
+        <div className="flex-shrink-0">
+          <Link href="/journal">
+            <Button 
+              variant="default" 
+              className="w-full sm:w-auto min-h-[44px] text-base"
+              size={isMobile ? "lg" : "default"}
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              New Entry
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Content Grid */}
+      <div className="space-y-4">
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <DailySummary summaries={summaries} />
+        </div>
+        <div className="rounded-lg border border-border/40 bg-background p-4">
+          <EntryList 
+            entries={entries} 
+            onPlay={handlePlayEntry}
+            onSearch={setSearchQuery}
+            searchQuery={searchQuery}
+          />
+        </div>
+      </div>
     </div>
   );
 }
