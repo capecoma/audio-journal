@@ -69,7 +69,7 @@ export default function Dashboard() {
       )}>
         <div className="container mx-auto px-3 py-4 space-y-4 max-w-7xl sm:px-4 sm:py-6 sm:space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-background p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
               <p className="text-sm sm:text-base text-muted-foreground mt-1">
