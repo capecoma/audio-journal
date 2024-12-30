@@ -15,7 +15,12 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
-const authSchema = z.object({
+const loginSchema = z.object({
+  email: z.string().email("Must be a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+const registerSchema = z.object({
   email: z.string().email("Must be a valid email"),
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -29,7 +34,8 @@ const newPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-type AuthForm = z.infer<typeof authSchema>;
+type LoginForm = z.infer<typeof loginSchema>;
+type RegisterForm = z.infer<typeof registerSchema>;
 type ResetForm = z.infer<typeof resetSchema>;
 type NewPasswordForm = z.infer<typeof newPasswordSchema>;
 
@@ -39,58 +45,57 @@ export default function AuthPage() {
   const { toast } = useToast();
   const [resetToken, setResetToken] = useState<string | null>(null);
 
-  const {
-    register: registerForm,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<AuthForm>({
-    resolver: zodResolver(authSchema),
+  const loginForm = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
   });
 
-  const {
-    register: registerResetForm,
-    handleSubmit: handleResetSubmit,
-    formState: { errors: resetErrors },
-  } = useForm<ResetForm>({
+  const registerForm = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+  });
+
+  const resetForm = useForm<ResetForm>({
     resolver: zodResolver(resetSchema),
   });
 
-  const {
-    register: registerNewPasswordForm,
-    handleSubmit: handleNewPasswordSubmit,
-    formState: { errors: newPasswordErrors },
-  } = useForm<NewPasswordForm>({
+  const newPasswordForm = useForm<NewPasswordForm>({
     resolver: zodResolver(newPasswordSchema),
   });
 
-  const onSubmit = async (data: AuthForm) => {
+  const onLoginSubmit = async (data: LoginForm) => {
     try {
-      if (mode === "login") {
-        const result = await login({
-          username: data.username,
-          email: data.email,
-          password: data.password,
+      const result = await login({
+        username: data.email, // Backend expects username field
+        password: data.password,
+      });
+      if (!result.ok) {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
         });
-        if (!result.ok) {
-          toast({
-            title: "Error",
-            description: result.message,
-            variant: "destructive",
-          });
-        }
-      } else {
-        const result = await registerUser({
-          username: data.username,
-          email: data.email,
-          password: data.password,
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onRegisterSubmit = async (data: RegisterForm) => {
+    try {
+      const result = await registerUser({
+        username: data.username,
+        email: data.email,
+        password: data.password,
+      });
+      if (!result.ok) {
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
         });
-        if (!result.ok) {
-          toast({
-            title: "Error",
-            description: result.message,
-            variant: "destructive",
-          });
-        }
       }
     } catch (error: any) {
       toast({
@@ -127,7 +132,6 @@ export default function AuthPage() {
 
   const onNewPasswordSubmit = async (data: NewPasswordForm) => {
     if (!resetToken) return;
-
     try {
       const result = await resetPassword({ token: resetToken, newPassword: data.password });
       if (result.ok) {
@@ -170,60 +174,88 @@ export default function AuthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {(mode === "login" || mode === "register") && (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {mode === "login" && (
+            <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
               <div>
                 <Input
-                  {...registerForm("email")}
+                  {...loginForm.register("email")}
                   type="email"
                   placeholder="Email"
-                  className={errors.email ? "border-destructive" : ""}
+                  className={loginForm.formState.errors.email ? "border-destructive" : ""}
                 />
-                {errors.email && (
-                  <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
+                {loginForm.formState.errors.email && (
+                  <p className="text-sm text-destructive mt-1">{loginForm.formState.errors.email.message}</p>
                 )}
               </div>
-              {mode === "register" && (
-                <div>
-                  <Input
-                    {...registerForm("username")}
-                    type="text"
-                    placeholder="Username"
-                    className={errors.username ? "border-destructive" : ""}
-                  />
-                  {errors.username && (
-                    <p className="text-sm text-destructive mt-1">{errors.username.message}</p>
-                  )}
-                </div>
-              )}
               <div>
                 <Input
-                  {...registerForm("password")}
+                  {...loginForm.register("password")}
                   type="password"
                   placeholder="Password"
-                  className={errors.password ? "border-destructive" : ""}
+                  className={loginForm.formState.errors.password ? "border-destructive" : ""}
                 />
-                {errors.password && (
-                  <p className="text-sm text-destructive mt-1">{errors.password.message}</p>
+                {loginForm.formState.errors.password && (
+                  <p className="text-sm text-destructive mt-1">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
               <Button type="submit" className="w-full">
-                {mode === "login" ? "Login" : "Register"}
+                Login
+              </Button>
+            </form>
+          )}
+
+          {mode === "register" && (
+            <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+              <div>
+                <Input
+                  {...registerForm.register("email")}
+                  type="email"
+                  placeholder="Email"
+                  className={registerForm.formState.errors.email ? "border-destructive" : ""}
+                />
+                {registerForm.formState.errors.email && (
+                  <p className="text-sm text-destructive mt-1">{registerForm.formState.errors.email.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  {...registerForm.register("username")}
+                  type="text"
+                  placeholder="Username"
+                  className={registerForm.formState.errors.username ? "border-destructive" : ""}
+                />
+                {registerForm.formState.errors.username && (
+                  <p className="text-sm text-destructive mt-1">{registerForm.formState.errors.username.message}</p>
+                )}
+              </div>
+              <div>
+                <Input
+                  {...registerForm.register("password")}
+                  type="password"
+                  placeholder="Password"
+                  className={registerForm.formState.errors.password ? "border-destructive" : ""}
+                />
+                {registerForm.formState.errors.password && (
+                  <p className="text-sm text-destructive mt-1">{registerForm.formState.errors.password.message}</p>
+                )}
+              </div>
+              <Button type="submit" className="w-full">
+                Register
               </Button>
             </form>
           )}
 
           {mode === "reset" && (
-            <form onSubmit={handleResetSubmit(onResetSubmit)} className="space-y-4">
+            <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
               <div>
                 <Input
-                  {...registerResetForm("email")}
+                  {...resetForm.register("email")}
                   type="email"
                   placeholder="Email"
-                  className={resetErrors.email ? "border-destructive" : ""}
+                  className={resetForm.formState.errors.email ? "border-destructive" : ""}
                 />
-                {resetErrors.email && (
-                  <p className="text-sm text-destructive mt-1">{resetErrors.email.message}</p>
+                {resetForm.formState.errors.email && (
+                  <p className="text-sm text-destructive mt-1">{resetForm.formState.errors.email.message}</p>
                 )}
               </div>
               <Button type="submit" className="w-full">
@@ -233,16 +265,16 @@ export default function AuthPage() {
           )}
 
           {mode === "new-password" && (
-            <form onSubmit={handleNewPasswordSubmit(onNewPasswordSubmit)} className="space-y-4">
+            <form onSubmit={newPasswordForm.handleSubmit(onNewPasswordSubmit)} className="space-y-4">
               <div>
                 <Input
-                  {...registerNewPasswordForm("password")}
+                  {...newPasswordForm.register("password")}
                   type="password"
                   placeholder="New Password"
-                  className={newPasswordErrors.password ? "border-destructive" : ""}
+                  className={newPasswordForm.formState.errors.password ? "border-destructive" : ""}
                 />
-                {newPasswordErrors.password && (
-                  <p className="text-sm text-destructive mt-1">{newPasswordErrors.password.message}</p>
+                {newPasswordForm.formState.errors.password && (
+                  <p className="text-sm text-destructive mt-1">{newPasswordForm.formState.errors.password.message}</p>
                 )}
               </div>
               <Button type="submit" className="w-full">
