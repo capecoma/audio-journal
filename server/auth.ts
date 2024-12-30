@@ -62,7 +62,13 @@ export function setupAuth(app: Express) {
       try {
         // Try to find user by username or email
         const [user] = await db
-          .select()
+          .select({
+            id: users.id,
+            username: users.username,
+            email: users.email,
+            password: users.password,
+            preferences: users.preferences
+          })
           .from(users)
           .where(or(eq(users.username, username), eq(users.email, username)))
           .limit(1);
@@ -138,7 +144,7 @@ export function setupAuth(app: Express) {
       // Hash the password
       const hashedPassword = await crypto.hash(password);
 
-      // Create the new user
+      // Create the new user with default preferences
       const [newUser] = await db
         .insert(users)
         .values({
@@ -146,6 +152,7 @@ export function setupAuth(app: Express) {
           email,
           password: hashedPassword,
           createdAt: new Date().toISOString(),
+          preferences: { aiJournalingEnabled: false }
         })
         .returning();
 
