@@ -1,8 +1,10 @@
 import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Home } from "lucide-react";
+import { AlertCircle, Home, LogOut } from "lucide-react";
 import { Suspense, lazy } from "react";
+import { useUser } from "./hooks/use-user";
+import AuthPage from "./pages/AuthPage";
 
 // Lazy load page components
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -25,15 +27,52 @@ function LoadingPage() {
 }
 
 function App() {
+  const { user, isLoading, logout } = useUser();
+
+  if (isLoading) {
+    return <LoadingPage />;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
-    <Suspense fallback={<LoadingPage />}>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/journal" component={Journal} />
-        <Route path="/analytics" component={Analytics} />
-        <Route component={NotFound} />
-      </Switch>
-    </Suspense>
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="border-b">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <nav className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost">Dashboard</Button>
+            </Link>
+            <Link href="/journal">
+              <Button variant="ghost">Journal</Button>
+            </Link>
+            <Link href="/analytics">
+              <Button variant="ghost">Analytics</Button>
+            </Link>
+          </nav>
+          <Button 
+            variant="outline" 
+            onClick={() => logout()}
+            className="flex items-center gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+      </header>
+      <main className="flex-1">
+        <Suspense fallback={<LoadingPage />}>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/journal" component={Journal} />
+            <Route path="/analytics" component={Analytics} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
+      </main>
+    </div>
   );
 }
 
