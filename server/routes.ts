@@ -1,29 +1,39 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
-import { format, startOfDay, endOfDay, subDays, subWeeks, parseISO } from "date-fns";
 import { db } from "@db";
-import { entries, summaries, users, achievements, userAchievements, UserPreferences } from "@db/schema";
-import { eq, desc, sql, and, gte, lt, count } from "drizzle-orm";
-import type { Entry, Summary, Achievement, UserAchievement } from "@db/schema";
+import { entries, users, achievements, userAchievements, summaries } from "@db/schema";
+import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
+import { format, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
 import { setupAuth } from "./auth";
 import { isAuthenticated, getUserId } from "./middleware/auth";
 import { trackAchievements } from "./middleware/achievements";
+import { transcribeAudio, generateTags, analyzeContent, generateSummary } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication routes
   setupAuth(app);
 
-  // Add comprehensive analytics endpoint
-  app.get("/api/analytics/comprehensive", isAuthenticated, async (req, res) => {
+  // Health check endpoint
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await db.execute(sql`SELECT 1 as check`);
+      res.json({ status: "healthy" });
+    } catch (err) {
+      console.error("Health check failed:", err);
+      res.status(500).json({ status: "unhealthy" });
+    }
+  });
+
+  // Patterns analysis endpoint
+  app.get("/api/analytics/patterns", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
 
-      // Get all entries for the last 30 days
+      console.log('Fetching entries for patterns analysis, user:', userId);
+
       const recentEntries = await db.query.entries.findMany({
         where: and(
           eq(entries.userId, userId),
@@ -34,102 +44,151 @@ export function registerRoutes(app: Express): Server {
 
       if (!recentEntries.length) {
         return res.json({
-          emotionDistribution: [],
-          weeklyActivity: [],
-          topTopics: [],
-          insightHighlights: [],
-          dailyStats: []
+          consistency: {
+            streakDays: 0,
+            totalEntries: 0,
+            averageEntriesPerWeek: "0",
+            mostActiveDay: null,
+            completionRate: 0
+          },
+          emotionalTrends: {
+            dominantEmotion: null,
+            emotionalStability: 0,
+            moodProgression: []
+          },
+          topics: {
+            frequentThemes: [],
+            emergingTopics: [],
+            decliningTopics: []
+          },
+          recommendations: []
         });
       }
 
-      // Calculate emotion distribution
-      const emotionCounts: Record<string, number> = {};
+      // Calculate consistency metrics
+      const entriesByDay = new Map<string, number>();
       recentEntries.forEach(entry => {
-        const sentiment = entry.aiAnalysis?.sentiment ?? 3;
-        const emotion = sentiment >= 4 ? "Joy" :
-                       sentiment <= 2 ? "Sadness" :
-                       "Neutral";
-        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+        const day = format(new Date(entry.createdAt), 'yyyy-MM-dd');
+        entriesByDay.set(day, (entriesByDay.get(day) || 0) + 1);
       });
 
-      const emotionDistribution = Object.entries(emotionCounts).map(([emotion, count]) => ({
-        emotion,
-        count
-      }));
+      let currentStreak = 0;
+      let date = new Date();
+      while (entriesByDay.has(format(date, 'yyyy-MM-dd'))) {
+        currentStreak++;
+        date = subDays(date, 1);
+      }
 
-      // Calculate weekly activity and sentiment
-      const weeklyActivity = Array.from({ length: 4 }).map((_, i) => {
-        const weekStart = subWeeks(new Date(), i).toISOString();
-        const weekEntries = recentEntries.filter(entry =>
-          parseISO(entry.createdAt) >= parseISO(weekStart)
-        );
+      const dayOfWeekCounts = new Map<string, number>();
+      recentEntries.forEach(entry => {
+        const dayOfWeek = format(new Date(entry.createdAt), 'EEEE');
+        dayOfWeekCounts.set(dayOfWeek, (dayOfWeekCounts.get(dayOfWeek) || 0) + 1);
+      });
 
-        const sentiments = weekEntries
-          .map(entry => entry.aiAnalysis?.sentiment)
-          .filter((s): s is number => s !== undefined && s !== null);
+      const mostActiveDay = Array.from(dayOfWeekCounts.entries())
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-        return {
-          week: format(parseISO(weekStart), 'MMM d'),
-          journalCount: weekEntries.length,
-          averageSentiment: sentiments.length > 0
-            ? Math.round(sentiments.reduce((a, b) => a + b, 0) / sentiments.length)
-            : 3
-        };
-      }).reverse();
+      // Analyze emotional trends
+      const emotions = recentEntries
+        .map(entry => ({
+          date: format(new Date(entry.createdAt), 'MMM d'),
+          sentiment: entry.aiAnalysis?.sentiment ?? 3
+        }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Calculate top topics
-      const topicCounts: Record<string, number> = {};
+      const emotionalStability = emotions.length > 1
+        ? 1 - Math.min(1, (emotions.reduce((sum, curr, idx, arr) => {
+            if (idx === 0) return 0;
+            return sum + Math.abs(curr.sentiment - arr[idx - 1].sentiment);
+          }, 0) / (emotions.length - 1)) / 4)
+        : 1;
+
+      // Analyze topic trends
+      const topicFrequency = new Map<string, { count: number; dates: Date[] }>();
       recentEntries.forEach(entry => {
         const topics = entry.aiAnalysis?.topics ?? [];
         topics.forEach(topic => {
-          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+          if (!topicFrequency.has(topic)) {
+            topicFrequency.set(topic, { count: 0, dates: [] });
+          }
+          const topicData = topicFrequency.get(topic)!;
+          topicData.count++;
+          topicData.dates.push(new Date(entry.createdAt));
         });
       });
 
-      const topTopics = Object.entries(topicCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([topic, count]) => ({ topic, count }));
+      // Calculate topic trends
+      const topicTrends = Array.from(topicFrequency.entries()).map(([topic, data]) => {
+        const recentCount = data.dates
+          .filter(date => date >= subDays(new Date(), 15))
+          .length;
+        const olderCount = data.dates
+          .filter(date => date < subDays(new Date(), 15))
+          .length;
+        return {
+          topic,
+          trend: recentCount - olderCount
+        };
+      });
 
-      // Generate insight highlights with proper null checks
-      const insightHighlights = recentEntries
-        .filter(entry => Array.isArray(entry.aiAnalysis?.insights) && entry.aiAnalysis.insights.length > 0)
-        .slice(0, 5)
-        .map(entry => ({
-          date: entry.createdAt,
-          insight: entry.aiAnalysis?.insights?.[0] ?? "No insight available",
-          impact: Math.floor(Math.random() * 10) + 1 // This should be replaced with actual impact calculation
-        }));
+      const emergingTopics = topicTrends
+        .filter(t => t.trend > 0)
+        .sort((a, b) => b.trend - a.trend)
+        .slice(0, 3)
+        .map(t => t.topic);
+
+      const decliningTopics = topicTrends
+        .filter(t => t.trend < 0)
+        .sort((a, b) => a.trend - b.trend)
+        .slice(0, 3)
+        .map(t => t.topic);
+
+      // Generate recommendations
+      const recommendations: string[] = [];
+      if (currentStreak === 0) {
+        recommendations.push("Try to journal daily to build a consistent habit");
+      }
+      if (emotionalStability < 0.5) {
+        recommendations.push("Consider exploring mindfulness techniques to help stabilize your emotions");
+      }
+      if (recentEntries.length < 15) {
+        recommendations.push("Aim to journal more frequently to get better insights");
+      }
 
       res.json({
-        emotionDistribution,
-        weeklyActivity,
-        topTopics,
-        insightHighlights,
-        dailyStats: weeklyActivity.map(w => ({
-          date: w.week,
-          count: w.journalCount
-        }))
+        consistency: {
+          streakDays: currentStreak,
+          totalEntries: recentEntries.length,
+          averageEntriesPerWeek: (recentEntries.length / 4.28).toFixed(1),
+          mostActiveDay,
+          completionRate: (entriesByDay.size / 30) * 100
+        },
+        emotionalTrends: {
+          dominantEmotion: emotions.reduce((acc, curr) => {
+            const emotion = curr.sentiment >= 4 ? "Joy" :
+                          curr.sentiment <= 2 ? "Sadness" :
+                          "Neutral";
+            acc[emotion] = (acc[emotion] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>),
+          emotionalStability,
+          moodProgression: emotions
+        },
+        topics: {
+          frequentThemes: Array.from(topicFrequency.entries())
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, 5)
+            .map(([topic]) => topic),
+          emergingTopics,
+          decliningTopics
+        },
+        recommendations
       });
-    } catch (error: any) {
-      console.error("Error fetching analytics:", error);
-      res.status(500).json({
-        error: "Failed to fetch analytics",
-        details: error.message
-      });
-    }
-  });
 
-  // Add health check endpoint
-  app.get("/api/health", async (_req, res) => {
-    try {
-      const result = await db.execute(sql`SELECT 1 as check`);
-      res.json({ status: "healthy", details: "Database connection successful" });
-    } catch (err) {
-      const error = err as Error;
-      console.error("Health check failed:", error);
+    } catch (error: any) {
+      console.error("Error analyzing patterns:", error);
       res.status(500).json({
-        status: "unhealthy",
+        error: "Failed to analyze patterns",
         details: error.message
       });
     }
@@ -201,7 +260,7 @@ export function registerRoutes(app: Express): Server {
         const tags = await generateTags(transcript);
         console.log('Tags generated:', tags);
 
-        // Perform AI analysis and track achievement
+        // Perform AI analysis
         console.log('Performing AI analysis...');
         const aiAnalysis = await analyzeContent(transcript);
         console.log('AI analysis completed:', aiAnalysis);
@@ -283,38 +342,16 @@ export function registerRoutes(app: Express): Server {
             .map(([topic]) => topic);
 
           // Update or create today's summary
-          const existingSummary = await db.select()
-            .from(summaries)
-            .where(
-              and(
-                eq(summaries.userId, userId),
-                gte(summaries.date, todayStart),
-                lt(summaries.date, todayEnd)
-              )
-            )
-            .limit(1);
-
-          if (existingSummary.length > 0) {
-            await db.update(summaries)
-              .set({
-                highlightText: summaryText,
-                sentimentScore: averageSentiment,
-                topicAnalysis: topTopics,
-                keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
-              })
-              .where(eq(summaries.id, existingSummary[0].id));
-          } else {
-            await db.insert(summaries)
-              .values({
-                userId,
-                date: todayStart,
-                highlightText: summaryText,
-                createdAt: currentDate,
-                sentimentScore: averageSentiment,
-                topicAnalysis: topTopics,
-                keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
-              });
-          }
+          await db.insert(summaries)
+            .values({
+              userId,
+              date: todayStart,
+              highlightText: summaryText,
+              createdAt: currentDate,
+              sentimentScore: averageSentiment,
+              topicAnalysis: topTopics,
+              keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+            });
         }
 
         res.json(entry);
@@ -526,4 +563,8 @@ async function checkAchievements(userId: number, achievementName: string) {
   } catch (err) {
     console.error("Error checking achievements:", err);
   }
+}
+
+interface UserPreferences {
+  aiJournalingEnabled: boolean;
 }

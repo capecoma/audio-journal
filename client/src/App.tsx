@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Journal = lazy(() => import("./pages/Journal"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Achievements = lazy(() => import("./pages/Achievements"));
+const PatternsAnalysis = lazy(() => import("./pages/PatternsAnalysis"));
 
 // Loading fallback component
 function LoadingPage() {
@@ -49,6 +50,7 @@ function App() {
               <Route path="/" component={Dashboard} />
               <Route path="/journal" component={Journal} />
               <Route path="/analytics" component={Analytics} />
+              <Route path="/analytics/patterns" component={PatternsAnalysis} />
               <Route path="/achievements" component={Achievements} />
               <Route component={NotFound} />
             </Switch>

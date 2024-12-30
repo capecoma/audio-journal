@@ -112,7 +112,12 @@ Return the analysis in JSON format with keys: sentiment, topics, insights`,
       response_format: { type: "json_object" }
     });
 
-    const analysis = JSON.parse(response.choices[0].message.content);
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("No content in OpenAI response");
+    }
+
+    const analysis = JSON.parse(content);
     return {
       sentiment: Math.min(5, Math.max(1, analysis.sentiment)),
       topics: analysis.topics.slice(0, 3),
