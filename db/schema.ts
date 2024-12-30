@@ -9,6 +9,10 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   password: text("password").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+  preferences: jsonb("preferences").$type<{
+    aiJournalingEnabled?: boolean;
+    // Add other preferences here as needed
+  }>().default({ aiJournalingEnabled: false }).notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -23,6 +27,9 @@ export const insertUserSchema = createInsertSchema(users, {
   username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Must be a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  preferences: z.object({
+    aiJournalingEnabled: z.boolean().optional().default(false)
+  }).optional().default({ aiJournalingEnabled: false })
 });
 
 export const selectUserSchema = createSelectSchema(users);

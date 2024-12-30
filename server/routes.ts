@@ -228,10 +228,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add new endpoints for AI-powered journaling insights
+  // New endpoint to toggle AI journaling feature
+  app.post("/api/preferences/ai-journaling", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: "Invalid input. 'enabled' must be a boolean value." });
+      }
+
+      const [user] = await db
+        .update(users)
+        .set({
+          preferences: {
+            aiJournalingEnabled: enabled
+          }
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      res.json({
+        success: true,
+        preferences: user.preferences
+      });
+    } catch (error: any) {
+      console.error("Error updating AI journaling preference:", error);
+      res.status(500).json({
+        error: "Failed to update preference",
+        details: error.message
+      });
+    }
+  });
+
+  // Modified reflection prompt endpoint to check for preference
   app.get("/api/prompts/reflection", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
+
+      // Check if AI journaling is enabled for this user
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user.preferences?.aiJournalingEnabled) {
+        return res.status(403).json({
+          error: "AI journaling feature is not enabled",
+          message: "Enable AI journaling in your preferences to access this feature"
+        });
+      }
 
       // Get recent entries for context
       const recentEntries = await db.query.entries.findMany({
@@ -259,9 +306,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Modified journaling patterns endpoint to check for preference
   app.get("/api/insights/patterns", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
+
+      // Check if AI journaling is enabled for this user
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user.preferences?.aiJournalingEnabled) {
+        return res.status(403).json({
+          error: "AI journaling feature is not enabled",
+          message: "Enable AI journaling in your preferences to access this feature"
+        });
+      }
 
       // Get entries from the last 30 days
       const entries = await db.query.entries.findMany({
