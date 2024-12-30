@@ -157,7 +157,6 @@ Please format the summary in a clear, readable way with bullet points for key ta
 }
 
 // New functions for journaling insights and prompts
-
 export async function generateReflectionPrompt(
   recentEntries: { transcript: string; sentiment: number }[]
 ): Promise<string> {
@@ -166,29 +165,26 @@ export async function generateReflectionPrompt(
       .map(entry => `Entry: ${entry.transcript}\nSentiment: ${entry.sentiment}`)
       .join('\n\n');
 
-    const prompt = `Based on these recent journal entries, generate a thoughtful reflection prompt that encourages deeper introspection and personal growth:
-
-${entriesContext}
-
-Generate a prompt that:
-1. Relates to themes or patterns in these entries
-2. Encourages deeper emotional awareness
-3. Promotes personal growth and self-reflection
-4. Is specific yet open-ended
-
-Return only the prompt question, no additional commentary.`;
-
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        {
+          role: "system",
+          content: "Generate a thoughtful reflection prompt based on recent journal entries. The prompt should encourage deeper introspection and relate to themes in the entries."
+        },
+        {
+          role: "user",
+          content: entriesContext
+        }
+      ],
       temperature: 0.7,
-      max_tokens: 150,
+      max_tokens: 150
     });
 
-    return response.choices[0].message.content ?? 'What moments from today made you feel most alive?';
+    return response.choices[0].message.content ?? 'What moments stood out to you today?';
   } catch (error) {
     console.error("Error generating reflection prompt:", error);
-    return "What moments from today made you feel most alive?";
+    return "What moments stood out to you today?";
   }
 }
 

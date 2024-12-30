@@ -4,11 +4,11 @@ import multer from "multer";
 import { db } from "@db";
 import { entries, users, achievements, userAchievements, summaries } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
-import { format, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
+import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { setupAuth } from "./auth";
 import { isAuthenticated, getUserId } from "./middleware/auth";
 import { trackAchievements } from "./middleware/achievements";
-import { transcribeAudio, generateTags, analyzeContent, generateSummary } from "./ai";
+import { transcribeAudio, generateTags, analyzeContent, generateSummary, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -26,8 +26,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Patterns analysis endpoint
-  app.get("/api/analytics/patterns", isAuthenticated, async (req, res) => {
+  // Add patterns analysis endpoint with proper logging
+  app.get("/api/analytics/patterns", isAuthenticated, trackAchievements('view_patterns'), async (req, res) => {
     try {
       const userId = getUserId(req);
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
@@ -184,7 +184,6 @@ export function registerRoutes(app: Express): Server {
         },
         recommendations
       });
-
     } catch (error: any) {
       console.error("Error analyzing patterns:", error);
       res.status(500).json({
@@ -194,46 +193,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Protected achievements route
-  app.get("/api/achievements", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      console.log('Fetching achievements for user:', userId);
-
-      // Get all achievements
-      const allAchievements = await db.query.achievements.findMany({
-        orderBy: [desc(achievements.createdAt)]
-      });
-
-      // Get user's achievement progress
-      const userProgress = await db.query.userAchievements.findMany({
-        where: eq(userAchievements.userId, userId)
-      });
-
-      // Map user progress to achievements
-      const achievementsWithProgress = allAchievements.map(achievement => {
-        const progress = userProgress.find(p => p.achievementId === achievement.id);
-        return {
-          ...achievement,
-          userProgress: progress ? {
-            earnedAt: progress.earnedAt,
-            progress: progress.progress
-          } : undefined
-        };
-      });
-
-      res.json(achievementsWithProgress);
-    } catch (err) {
-      const error = err as Error;
-      console.error("Error fetching achievements:", error);
-      res.status(500).json({
-        error: "Failed to fetch achievements",
-        details: error.message
-      });
-    }
-  });
-
-  // Protected upload and transcribe route with achievement tracking
+  // Protected upload and transcribe route
   app.post(
     "/api/entries/upload",
     isAuthenticated,
@@ -284,9 +244,6 @@ export function registerRoutes(app: Express): Server {
             }
           })
           .returning();
-
-        // Track emotion analysis achievement
-        await checkAchievements(userId, 'emotion_analyzed');
 
         // Get all entries for today to generate a summary
         const todayStart = startOfDay(new Date()).toISOString();
@@ -364,6 +321,45 @@ export function registerRoutes(app: Express): Server {
       }
     }
   );
+
+  // Protected achievements route
+  app.get("/api/achievements", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      console.log('Fetching achievements for user:', userId);
+
+      // Get all achievements
+      const allAchievements = await db.query.achievements.findMany({
+        orderBy: [desc(achievements.createdAt)]
+      });
+
+      // Get user's achievement progress
+      const userProgress = await db.query.userAchievements.findMany({
+        where: eq(userAchievements.userId, userId)
+      });
+
+      // Map user progress to achievements
+      const achievementsWithProgress = allAchievements.map(achievement => {
+        const progress = userProgress.find(p => p.achievementId === achievement.id);
+        return {
+          ...achievement,
+          userProgress: progress ? {
+            earnedAt: progress.earnedAt,
+            progress: progress.progress
+          } : undefined
+        };
+      });
+
+      res.json(achievementsWithProgress);
+    } catch (err) {
+      const error = err as Error;
+      console.error("Error fetching achievements:", error);
+      res.status(500).json({
+        error: "Failed to fetch achievements",
+        details: error.message
+      });
+    }
+  });
 
   // Protected entries route with detailed logging
   app.get("/api/entries", isAuthenticated, async (req, res) => {
@@ -546,23 +542,6 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
-}
-
-async function checkAchievements(userId: number, achievementName: string) {
-  //  This is a placeholder,  replace with actual achievement checking logic
-  //  This would involve querying the database to see if the user has already earned the achievement and update if necessary.
-  console.log(`Checking achievement '${achievementName}' for user ${userId}`);
-  try {
-    const achievement = await db.query.achievements.findFirst({ where: eq(achievements.name, achievementName) });
-    if (achievement) {
-      const existingProgress = await db.query.userAchievements.findFirst({ where: and(eq(userAchievements.userId, userId), eq(userAchievements.achievementId, achievement.id)) });
-      if (!existingProgress) {
-        await db.insert(userAchievements).values({ userId, achievementId: achievement.id, progress: { current: 1, target: 1, percent: 100 }, earnedAt: new Date().toISOString() });
-      }
-    }
-  } catch (err) {
-    console.error("Error checking achievements:", err);
-  }
 }
 
 interface UserPreferences {
