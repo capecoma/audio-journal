@@ -1,7 +1,7 @@
 import { Switch, Route, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Home, LogOut } from "lucide-react";
+import { AlertCircle, Home } from "lucide-react";
 import { Suspense, lazy } from "react";
 import { useUser } from "./hooks/use-user";
 import Navigation from "./components/layout/Navigation";
@@ -28,7 +28,7 @@ function LoadingPage() {
 }
 
 function App() {
-  const { user, isLoading, logout } = useUser();
+  const { user, isLoading } = useUser();
 
   if (isLoading) {
     return <LoadingPage />;
@@ -45,18 +45,6 @@ function App() {
       {/* Main content area */}
       <main className="flex-1 mt-14 md:pl-[240px]">
         <div className="container max-w-[1600px] mx-auto p-4">
-          {/* User actions in top right */}
-          <div className="flex justify-end mb-4">
-            <Button 
-              variant="outline" 
-              onClick={() => logout()}
-              className="flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          </div>
-
           {/* Page content */}
           <Suspense fallback={<LoadingPage />}>
             <Switch>
