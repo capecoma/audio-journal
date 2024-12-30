@@ -86,7 +86,7 @@ export default function Navigation() {
                 </DrawerContent>
               </Drawer>
             ) : null}
-            <span className="text-lg font-semibold">Audio Journal</span>
+            <h1 className="text-lg font-semibold">Audio Journal</h1>
           </div>
           {user && (
             <div className="flex items-center gap-3">
