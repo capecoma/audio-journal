@@ -1,0 +1,52 @@
+Uncaught ReferenceError: cn is not defined
+    Dashboard Dashboard.tsx:67
+    React 12
+    workLoop scheduler.development.js:266
+    flushWork scheduler.development.js:239
+    performWorkUntilDeadline scheduler.development.js:533
+    js scheduler.development.js:571
+    js scheduler.development.js:633
+    __require chunk-WOOG5QLI.js:12
+    js index.js:6
+    __require chunk-WOOG5QLI.js:12
+    React 2
+    __require chunk-WOOG5QLI.js:12
+    js React
+    __require chunk-WOOG5QLI.js:12
+    js React
+    __require chunk-WOOG5QLI.js:12
+    <anonymous> react-dom_client.js:38
+Dashboard.tsx:67:12
+Uncaught ReferenceError: cn is not defined
+    Dashboard Dashboard.tsx:67
+    React 13
+    workLoop scheduler.development.js:266
+    flushWork scheduler.development.js:239
+    performWorkUntilDeadline scheduler.development.js:533
+    js scheduler.development.js:571
+    js scheduler.development.js:633
+    __require chunk-WOOG5QLI.js:12
+    js index.js:6
+    __require chunk-WOOG5QLI.js:12
+    React 2
+    __require chunk-WOOG5QLI.js:12
+    js React
+    __require chunk-WOOG5QLI.js:12
+    js React
+    __require chunk-WOOG5QLI.js:12
+    <anonymous> react-dom_client.js:38
+Dashboard.tsx:67:12
+The above error occurred in the <Dashboard> component:
+
+Dashboard@https://af5f5967-293c-4c93-8dd1-d3a3b0a3c121-00-1u1ijoqpljpej.kirk.replit.dev/src/pages/Dashboard.tsx:30:49
+Route@https://af5f5967-293c-4c93-8dd1-d3a3b0a3c121-00-1u1ijoqpljpej.kirk.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7bb1657a:323:13
+Switch@https://af5f5967-293c-4c93-8dd1-d3a3b0a3c121-00-1u1ijoqpljpej.kirk.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7bb1657a:379:14
+Suspense
+div
+main
+div
+App@https://af5f5967-293c-4c93-8dd1-d3a3b0a3c121-00-1u1ijoqpljpej.kirk.replit.dev/src/App.tsx:58:39
+QueryClientProvider@https://af5f5967-293c-4c93-8dd1-d3a3b0a3c121-00-1u1ijoqpljpej.kirk.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7bb1657a:2804:27
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.

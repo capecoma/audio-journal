@@ -8,6 +8,7 @@ import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
 import Navigation from "@/components/layout/Navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import type { Summary } from "@db/schema";
 
 interface Entry {
