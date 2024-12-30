@@ -112,12 +112,7 @@ Return the analysis in JSON format with keys: sentiment, topics, insights`,
       response_format: { type: "json_object" }
     });
 
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error("No content in OpenAI response");
-    }
-
-    const analysis = JSON.parse(content);
+    const analysis = JSON.parse(response.choices[0].message.content);
     return {
       sentiment: Math.min(5, Math.max(1, analysis.sentiment)),
       topics: analysis.topics.slice(0, 3),
@@ -157,6 +152,7 @@ Please format the summary in a clear, readable way with bullet points for key ta
 }
 
 // New functions for journaling insights and prompts
+
 export async function generateReflectionPrompt(
   recentEntries: { transcript: string; sentiment: number }[]
 ): Promise<string> {
@@ -165,26 +161,29 @@ export async function generateReflectionPrompt(
       .map(entry => `Entry: ${entry.transcript}\nSentiment: ${entry.sentiment}`)
       .join('\n\n');
 
+    const prompt = `Based on these recent journal entries, generate a thoughtful reflection prompt that encourages deeper introspection and personal growth:
+
+${entriesContext}
+
+Generate a prompt that:
+1. Relates to themes or patterns in these entries
+2. Encourages deeper emotional awareness
+3. Promotes personal growth and self-reflection
+4. Is specific yet open-ended
+
+Return only the prompt question, no additional commentary.`;
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "Generate a thoughtful reflection prompt based on recent journal entries. The prompt should encourage deeper introspection and relate to themes in the entries."
-        },
-        {
-          role: "user",
-          content: entriesContext
-        }
-      ],
+      messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
-      max_tokens: 150
+      max_tokens: 150,
     });
 
-    return response.choices[0].message.content ?? 'What moments stood out to you today?';
+    return response.choices[0].message.content ?? 'What moments from today made you feel most alive?';
   } catch (error) {
     console.error("Error generating reflection prompt:", error);
-    return "What moments stood out to you today?";
+    return "What moments from today made you feel most alive?";
   }
 }
 

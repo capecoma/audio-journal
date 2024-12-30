@@ -6,11 +6,11 @@ import { startOfDay, endOfDay, subDays } from "date-fns";
 import { getUserId } from "./auth";
 
 interface AchievementCriteria {
-  type: 'entry_count' | 'streak' | 'emotion_analysis' | 'view_patterns';
+  type: 'entry_count' | 'streak' | 'emotion_analysis';
   target: number;
 }
 
-export async function checkAchievements(userId: number, action: 'entry_created' | 'emotion_analyzed' | 'view_patterns') {
+export async function checkAchievements(userId: number, action: 'entry_created' | 'emotion_analyzed') {
   // First get all achievements
   const allAchievements = await db.query.achievements.findMany({
     orderBy: [desc(achievements.createdAt)]
@@ -104,17 +104,6 @@ export async function checkAchievements(userId: number, action: 'entry_created' 
         }
         break;
       }
-
-      case 'view_patterns': {
-        if (action === 'view_patterns') {
-          // Simply increment the view count for patterns analysis
-          progress = existingProgress?.progress || { current: 0, target: criteria.target || 5, percent: 0 };
-          progress.current += 1;
-          progress.percent = Math.min(100, (progress.current / progress.target) * 100);
-          shouldUpdate = true;
-        }
-        break;
-      }
     }
 
     if (shouldUpdate) {
@@ -141,7 +130,7 @@ export async function checkAchievements(userId: number, action: 'entry_created' 
 }
 
 // Middleware to check achievements after certain actions
-export function trackAchievements(action: 'entry_created' | 'emotion_analyzed' | 'view_patterns') {
+export function trackAchievements(action: 'entry_created' | 'emotion_analyzed') {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = getUserId(req);
