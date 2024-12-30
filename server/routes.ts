@@ -4,7 +4,7 @@ import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent } from "./ai";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { db } from "@db";
-import { entries, summaries } from "@db/schema";
+import { entries, summaries, users } from "@db/schema"; // Added import for users
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
 import { setupAuth } from "./auth";
@@ -31,16 +31,26 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Protected entries route
+  // Protected entries route with detailed logging
   app.get("/api/entries", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      console.log('Attempting to fetch entries from database for user:', userId);
+      console.log('Fetching entries for user ID:', userId);
+
+      // First verify the user exists
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+      console.log('Found user:', user?.username);
+
       const allEntries = await db.query.entries.findMany({
         where: eq(entries.userId, userId),
         orderBy: [desc(entries.createdAt)]
       });
-      console.log(`Successfully fetched ${allEntries.length} entries`);
+
+      console.log(`Found ${allEntries.length} entries for user ${userId}`);
+      console.log('Entry IDs:', allEntries.map(e => e.id));
+
       res.json(allEntries);
     } catch (err) {
       const error = err as Error;
