@@ -29,7 +29,7 @@ export const selectUserSchema = createSelectSchema(users);
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id").references(() => users.id),
   audioUrl: text("audio_url").notNull(),
   transcript: text("transcript"),
   duration: integer("duration"),
@@ -52,7 +52,7 @@ export const entriesRelations = relations(entries, ({ one }) => ({
 
 export const summaries = pgTable("summaries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id").references(() => users.id),
   date: timestamp("date", { mode: 'string' }).notNull(),
   highlightText: text("highlight_text").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
