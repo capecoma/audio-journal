@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, type User } from "@db/schema";
+import { users, insertUserSchema, type SelectUser } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -30,7 +30,7 @@ const crypto = {
 
 declare global {
   namespace Express {
-    interface User extends User { }
+    interface User extends SelectUser {}
   }
 }
 
@@ -60,29 +60,15 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // Try to find user by username or email
         const [user] = await db
           .select()
           .from(users)
-          .where(eq(users.username, username))
+          .where(or(eq(users.username, username), eq(users.email, username)))
           .limit(1);
 
         if (!user) {
-          // Try email login
-          const [userByEmail] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, username))
-            .limit(1);
-
-          if (!userByEmail) {
-            return done(null, false, { message: "Invalid username or email." });
-          }
-
-          const isMatch = await crypto.compare(password, userByEmail.password);
-          if (!isMatch) {
-            return done(null, false, { message: "Invalid password." });
-          }
-          return done(null, userByEmail);
+          return done(null, false, { message: "Invalid username or email." });
         }
 
         const isMatch = await crypto.compare(password, user.password);
@@ -119,20 +105,23 @@ export function setupAuth(app: Express) {
       if (!result.success) {
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+          .json({ 
+            error: "Invalid input",
+            details: result.error.issues.map(i => i.message)
+          });
       }
 
       const { username, email, password } = result.data;
 
-      // Check if user already exists
-      const [existingUser] = await db
+      // Check if username already exists
+      const [existingUsername] = await db
         .select()
         .from(users)
         .where(eq(users.username, username))
         .limit(1);
 
-      if (existingUser) {
-        return res.status(400).send("Username already exists");
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username already exists" });
       }
 
       // Check if email already exists
@@ -143,7 +132,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingEmail) {
-        return res.status(400).send("Email already exists");
+        return res.status(400).json({ error: "Email already exists" });
       }
 
       // Hash the password
@@ -166,7 +155,7 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
-          message: "Registration successful",
+          ok: true,
           user: { id: newUser.id, username: newUser.username, email: newUser.email },
         });
       });
@@ -176,20 +165,16 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res
-        .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
-    }
-
     passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
       if (err) {
         return next(err);
       }
 
       if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
+        return res.status(400).json({ 
+          ok: false,
+          error: info.message ?? "Login failed" 
+        });
       }
 
       req.logIn(user, (err) => {
@@ -198,7 +183,7 @@ export function setupAuth(app: Express) {
         }
 
         return res.json({
-          message: "Login successful",
+          ok: true,
           user: { id: user.id, username: user.username, email: user.email },
         });
       });
@@ -208,16 +193,24 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        return res.status(500).json({ 
+          ok: false,
+          error: "Logout failed" 
+        });
       }
-      res.json({ message: "Logout successful" });
+      res.json({ ok: true });
     });
   });
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      return res.json(req.user);
+      const user = req.user;
+      return res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email
+      });
     }
-    res.status(401).send("Not logged in");
+    res.status(401).json({ error: "Not logged in" });
   });
 }
