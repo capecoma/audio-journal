@@ -71,7 +71,7 @@ export default function Dashboard() {
       )}>
         <div className="container mx-auto px-3 py-4 space-y-4 max-w-7xl sm:px-4 sm:py-6 sm:space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-background border border-border/40 p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-background p-3 sm:p-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
               <p className="text-sm sm:text-base text-muted-foreground mt-1">
@@ -94,7 +94,7 @@ export default function Dashboard() {
 
           {/* Content Grid */}
           <div className="space-y-4 sm:space-y-6">
-            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
+            <div className="rounded-lg bg-background p-3 sm:p-4 md:max-w-3xl lg:max-w-4xl mx-auto">
               <DailySummary summaries={summaries} />
             </div>
             <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
