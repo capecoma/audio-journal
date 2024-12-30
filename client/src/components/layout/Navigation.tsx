@@ -43,8 +43,8 @@ export default function Navigation() {
             variant={location === href ? "secondary" : "ghost"}
             className={cn(
               "w-full justify-start text-base transition-all duration-200",
-              location === href
-                ? "bg-primary/10 text-primary font-medium shadow-sm"
+              location === href 
+                ? "bg-primary/10 text-primary font-medium shadow-sm" 
                 : "text-primary/60 hover:text-primary hover:bg-primary/5"
             )}
             onClick={() => setIsOpen(false)}
@@ -88,24 +88,22 @@ export default function Navigation() {
             ) : null}
             <span className="text-lg font-semibold">Audio Journal</span>
           </div>
-          <div className="flex items-center gap-4">
-            {user && (
-              <>
-                <span className="text-sm text-muted-foreground hidden sm:inline-block">
-                  {user.username}
-                </span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={handleLogout}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline-block">Logout</span>
-                </Button>
-              </>
-            )}
-          </div>
+          {user && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">
+                {user.username}
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline-block">Logout</span>
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
