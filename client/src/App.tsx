@@ -44,7 +44,7 @@ function App() {
 
       {/* Main content area */}
       <main className="flex-1 mt-14 md:pl-[240px]">
-        <div className="container max-w-[1600px] mx-auto p-4">
+        <div className="container max-w-[1600px] mx-auto">
           {/* Page content */}
           <Suspense fallback={<LoadingPage />}>
             <Switch>
