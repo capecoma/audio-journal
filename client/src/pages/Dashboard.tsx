@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Plus, BarChart2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import EntryList from "@/components/dashboard/EntryList";
 import DailySummary from "@/components/dashboard/DailySummary";
@@ -28,9 +28,7 @@ interface Entry {
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
-  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
 
   const { data: entries = [] } = useQuery<Entry[]>({
@@ -63,7 +61,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen bg-background">
       <Navigation />
       <main className={cn(
         "flex-1 pt-14",
@@ -94,7 +92,7 @@ export default function Dashboard() {
 
           {/* Content Grid */}
           <div className="space-y-4 sm:space-y-6">
-            <div className="rounded-lg bg-background p-3 sm:p-4 md:max-w-3xl lg:max-w-4xl mx-auto">
+            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
               <DailySummary summaries={summaries} />
             </div>
             <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
