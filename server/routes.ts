@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
-import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { db } from "@db";
 import { entries, summaries, users, achievements, userAchievements, UserPreferences } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
@@ -278,6 +278,147 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add analytics endpoint with comprehensive insights
+  app.get("/api/analytics", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+
+      // Get feature usage statistics based on available data
+      const featureUsage = await db.select({
+        feature: sql`CASE 
+          WHEN ai_analysis IS NULL THEN 'general'
+          WHEN ai_analysis->>'feature' IS NULL THEN 'general'
+          ELSE ai_analysis->>'feature'
+        END`,
+        count: sql`COUNT(*)`
+      })
+        .from(entries)
+        .where(eq(entries.userId, userId))
+        .groupBy(sql`CASE 
+          WHEN ai_analysis IS NULL THEN 'general'
+          WHEN ai_analysis->>'feature' IS NULL THEN 'general'
+          ELSE ai_analysis->>'feature'
+        END`);
+
+      // Get daily activity stats
+      const dailyStats = await db.select({
+        date: entries.createdAt,
+        count: sql`COUNT(*)`
+      })
+        .from(entries)
+        .where(eq(entries.userId, userId))
+        .groupBy(entries.createdAt)
+        .orderBy(desc(entries.createdAt))
+        .limit(30);
+
+      // Get emotion distribution from AI analysis
+      const emotionResults = await db.execute(sql`
+        WITH emotion_counts AS (
+          SELECT 
+            CASE 
+              WHEN COALESCE((ai_analysis->>'sentiment')::float, 3) >= 4 THEN 'Positive'
+              WHEN COALESCE((ai_analysis->>'sentiment')::float, 3) <= 2 THEN 'Negative'
+              ELSE 'Neutral'
+            END as emotion
+          FROM ${entries}
+          WHERE user_id = ${userId}
+        )
+        SELECT emotion, COUNT(*) as count
+        FROM emotion_counts
+        GROUP BY emotion
+      `);
+
+      const emotionDistribution = emotionResults.rows.map(row => ({
+        name: String(row.emotion),
+        value: Number(row.count)
+      }));
+
+      // Get top topics with proper error handling
+      const topicResults = await db.execute(sql`
+        WITH RECURSIVE extracted_topics AS (
+          SELECT unnest(
+            CASE 
+              WHEN ai_analysis->>'topics' IS NULL THEN ARRAY['General']::text[]
+              ELSE array(
+                SELECT jsonb_array_elements_text(
+                  CASE 
+                    WHEN jsonb_typeof(ai_analysis->'topics') = 'array' 
+                    THEN ai_analysis->'topics'
+                    ELSE '["General"]'::jsonb
+                  END
+                )
+              )
+            END
+          ) as topic
+          FROM ${entries}
+          WHERE user_id = ${userId}
+        )
+        SELECT topic, COUNT(*) as count
+        FROM extracted_topics
+        GROUP BY topic
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+
+      const topTopics = topicResults.rows.map(row => ({
+        topic: String(row.topic),
+        count: Number(row.count)
+      }));
+
+      // Get weekly trends
+      const weeklyTrends = [];
+      for (let i = 0; i < 12; i++) {
+        const weekStart = startOfWeek(subWeeks(new Date(), i));
+        const weekEnd = endOfWeek(subWeeks(new Date(), i));
+
+        const weekResult = await db.execute(sql`
+          SELECT 
+            COUNT(*) as journal_count,
+            COALESCE(
+              ROUND(
+                AVG(
+                  CASE 
+                    WHEN ai_analysis->>'sentiment' IS NOT NULL 
+                    THEN (ai_analysis->>'sentiment')::float
+                    ELSE 3
+                  END
+                )::numeric, 
+                2
+              ),
+              3
+            ) as avg_sentiment
+          FROM ${entries}
+          WHERE 
+            user_id = ${userId}
+            AND created_at >= ${weekStart.toISOString()}
+            AND created_at < ${weekEnd.toISOString()}
+        `);
+
+        const weekData = weekResult.rows[0];
+
+        weeklyTrends.unshift({
+          week: weekStart.toISOString(),
+          journalCount: Number(weekData.journal_count),
+          avgSentiment: Number(weekData.avg_sentiment)
+        });
+      }
+
+      res.json({
+        featureUsage,
+        dailyStats,
+        emotionDistribution,
+        topTopics,
+        weeklyTrends
+      });
+    } catch (error: any) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({
+        error: "Failed to fetch analytics",
+        details: error.message
+      });
+    }
+  });
+
   // New endpoint to toggle AI journaling feature
   app.post("/api/preferences/ai-journaling", isAuthenticated, async (req, res) => {
     try {
@@ -408,16 +549,29 @@ export function registerRoutes(app: Express): Server {
   return httpServer;
 }
 
+// Add back the checkAchievements function
 async function checkAchievements(userId: number, achievementName: string) {
-  //  This is a placeholder,  replace with actual achievement checking logic
-  //  This would involve querying the database to see if the user has already earned the achievement and update if necessary.
   console.log(`Checking achievement '${achievementName}' for user ${userId}`);
   try {
-    const achievement = await db.query.achievements.findFirst({ where: eq(achievements.name, achievementName) });
+    const achievement = await db.query.achievements.findFirst({ 
+      where: eq(achievements.name, achievementName) 
+    });
+
     if (achievement) {
-      const existingProgress = await db.query.userAchievements.findFirst({ where: and(eq(userAchievements.userId, userId), eq(userAchievements.achievementId, achievement.id)) });
+      const existingProgress = await db.query.userAchievements.findFirst({ 
+        where: and(
+          eq(userAchievements.userId, userId), 
+          eq(userAchievements.achievementId, achievement.id)
+        ) 
+      });
+
       if (!existingProgress) {
-        await db.insert(userAchievements).values({ userId, achievementId: achievement.id, progress: { current: 1, target: 1, percent: 100 }, earnedAt: new Date().toISOString() });
+        await db.insert(userAchievements).values({ 
+          userId, 
+          achievementId: achievement.id, 
+          progress: { current: 1, target: 1, percent: 100 }, 
+          earnedAt: new Date().toISOString() 
+        });
       }
     }
   } catch (err) {
