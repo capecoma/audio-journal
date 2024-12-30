@@ -6,7 +6,7 @@ import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { users, insertUserSchema, type SelectUser } from "@db/schema";
-import { db } from "@db";
+import { getDb } from "@db";
 import { eq, or } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
@@ -60,6 +60,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        const db = getDb();
         // Try to find user by username or email
         const [user] = await db
           .select({
@@ -67,7 +68,6 @@ export function setupAuth(app: Express) {
             username: users.username,
             email: users.email,
             password: users.password,
-            preferences: users.preferences
           })
           .from(users)
           .where(or(eq(users.username, username), eq(users.email, username)))
@@ -94,6 +94,7 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      const db = getDb();
       const [user] = await db
         .select()
         .from(users)
@@ -118,6 +119,7 @@ export function setupAuth(app: Express) {
       }
 
       const { username, email, password } = result.data;
+      const db = getDb();
 
       // Check if username already exists
       const [existingUsername] = await db
