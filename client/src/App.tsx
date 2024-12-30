@@ -43,7 +43,7 @@ function App() {
       <Navigation />
 
       {/* Main content area */}
-      <main className="flex-1 mt-14 md:pl-[240px]">
+      <main className="flex-1 md:pl-[240px] pt-14">
         <div className="container max-w-[1600px] mx-auto">
           {/* Page content */}
           <Suspense fallback={<LoadingPage />}>
