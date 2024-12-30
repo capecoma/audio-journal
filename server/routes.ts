@@ -7,10 +7,14 @@ import { db } from "@db";
 import { entries, summaries } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary } from "@db/schema";
+import { setupAuth } from "./auth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
+  // Setup authentication routes
+  setupAuth(app);
+
   // Add health check endpoint
   app.get("/api/health", async (_req, res) => {
     try {
@@ -89,7 +93,7 @@ export function registerRoutes(app: Express): Server {
       const aiAnalysis = await analyzeContent(transcript);
       console.log('AI analysis completed:', aiAnalysis);
 
-      const currentDate = new Date();
+      const currentDate = new Date().toISOString();
 
       // Insert new entry
       const [entry] = await db.insert(entries)
@@ -109,8 +113,8 @@ export function registerRoutes(app: Express): Server {
         .returning();
 
       // Get all entries for today to generate a summary
-      const todayStart = startOfDay(currentDate);
-      const todayEnd = endOfDay(currentDate);
+      const todayStart = startOfDay(new Date()).toISOString();
+      const todayEnd = endOfDay(new Date()).toISOString();
 
       console.log('Fetching today\'s entries between:', todayStart, 'and', todayEnd);
 
