@@ -10,6 +10,24 @@ import { isAuthenticated, getUserId } from "./middleware/auth";
 import { trackAchievements } from "./middleware/achievements";
 import { transcribeAudio, generateTags, analyzeContent, generateSummary, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
 
+interface EntryAnalysis {
+  sentiment?: number;
+  topics?: string[];
+  insights?: string[];
+}
+
+interface ProcessedEntry {
+  id: number;
+  createdAt: string;
+  userId: number;
+  audioUrl: string;
+  transcript: string | null;
+  duration: number | null;
+  isProcessed: boolean | null;
+  tags: string[] | null;
+  aiAnalysis: EntryAnalysis | null;
+}
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function registerRoutes(app: Express): Server {
@@ -40,7 +58,7 @@ export function registerRoutes(app: Express): Server {
           gte(entries.createdAt, thirtyDaysAgo)
         ),
         orderBy: [desc(entries.createdAt)]
-      });
+      }) as ProcessedEntry[];
 
       if (!recentEntries.length) {
         return res.json({
@@ -49,21 +67,33 @@ export function registerRoutes(app: Express): Server {
             totalEntries: 0,
             averageEntriesPerWeek: "0",
             mostActiveDay: null,
-            completionRate: 0
+            completionRate: 0,
+            entryTimeDistribution: []
           },
           emotionalTrends: {
-            dominantEmotion: null,
+            dominantEmotion: {},
             emotionalStability: 0,
-            moodProgression: []
+            moodProgression: [],
+            emotionFrequency: []
           },
           topics: {
             frequentThemes: [],
             emergingTopics: [],
-            decliningTopics: []
+            decliningTopics: [],
+            topicTimeline: []
           },
           recommendations: []
         });
       }
+
+      // Calculate entry time distribution
+      const entryTimeDistribution = Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        count: recentEntries.filter(entry => {
+          const entryHour = new Date(entry.createdAt).getHours();
+          return entryHour === hour;
+        }).length
+      }));
 
       // Calculate consistency metrics
       const entriesByDay = new Map<string, number>();
@@ -88,34 +118,41 @@ export function registerRoutes(app: Express): Server {
       const mostActiveDay = Array.from(dayOfWeekCounts.entries())
         .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-      // Analyze emotional trends
-      const emotions = recentEntries
-        .map(entry => ({
-          date: format(new Date(entry.createdAt), 'MMM d'),
-          sentiment: entry.aiAnalysis?.sentiment ?? 3
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Enhanced emotion analysis
+      const emotionCategories = ['Very Negative', 'Negative', 'Neutral', 'Positive', 'Very Positive'];
+      const emotionFrequency = emotionCategories.map(emotion => ({
+        emotion,
+        count: recentEntries.filter(entry => {
+          const sentiment = entry.aiAnalysis?.sentiment ?? 3;
+          const category = sentiment <= 1.5 ? 'Very Negative' :
+                            sentiment <= 2.5 ? 'Negative' :
+                            sentiment <= 3.5 ? 'Neutral' :
+                            sentiment <= 4.5 ? 'Positive' : 'Very Positive';
+          return category === emotion;
+        }).length
+      }));
 
-      const emotionalStability = emotions.length > 1
-        ? 1 - Math.min(1, (emotions.reduce((sum, curr, idx, arr) => {
-            if (idx === 0) return 0;
-            return sum + Math.abs(curr.sentiment - arr[idx - 1].sentiment);
-          }, 0) / (emotions.length - 1)) / 4)
-        : 1;
-
-      // Analyze topic trends
-      const topicFrequency = new Map<string, { count: number; dates: Date[] }>();
+      // Enhanced topic frequency analysis
+      const topicFrequency = new Map<string, { frequency: number; dates: Date[] }>();
       recentEntries.forEach(entry => {
         const topics = entry.aiAnalysis?.topics ?? [];
         topics.forEach(topic => {
           if (!topicFrequency.has(topic)) {
-            topicFrequency.set(topic, { count: 0, dates: [] });
+            topicFrequency.set(topic, { frequency: 0, dates: [] });
           }
           const topicData = topicFrequency.get(topic)!;
-          topicData.count++;
+          topicData.frequency++;
           topicData.dates.push(new Date(entry.createdAt));
         });
       });
+
+      const frequentThemes = Array.from(topicFrequency.entries())
+        .map(([topic, data]) => ({
+          topic,
+          frequency: data.frequency
+        }))
+        .sort((a, b) => b.frequency - a.frequency)
+        .slice(0, 8);
 
       // Calculate topic trends
       const topicTrends = Array.from(topicFrequency.entries()).map(([topic, data]) => {
@@ -143,17 +180,29 @@ export function registerRoutes(app: Express): Server {
         .slice(0, 3)
         .map(t => t.topic);
 
-      // Generate recommendations
+      // Generate recommendations based on frequency patterns
       const recommendations: string[] = [];
-      if (currentStreak === 0) {
-        recommendations.push("Try to journal daily to build a consistent habit");
+
+      // Time-based recommendations
+      const mostActiveHour = entryTimeDistribution
+        .reduce((max, current) => current.count > max.count ? current : max);
+      recommendations.push(
+        `You tend to journal most frequently at ${mostActiveHour.hour}:00. This time seems to work well for your reflection practice.`
+      );
+
+      // Topic-based recommendations
+      if (frequentThemes.length > 0) {
+        recommendations.push(
+          `Your most discussed topic is "${frequentThemes[0].topic}" appearing ${frequentThemes[0].frequency} times. Consider exploring how this theme impacts different areas of your life.`
+        );
       }
-      if (emotionalStability < 0.5) {
-        recommendations.push("Consider exploring mindfulness techniques to help stabilize your emotions");
-      }
-      if (recentEntries.length < 15) {
-        recommendations.push("Aim to journal more frequently to get better insights");
-      }
+
+      // Emotion-based recommendations
+      const dominantEmotion = emotionFrequency
+        .reduce((max, current) => current.count > max.count ? current : max);
+      recommendations.push(
+        `Your entries most frequently express ${dominantEmotion.emotion.toLowerCase()} emotions. This might reflect your overall state of mind during this period.`
+      );
 
       res.json({
         consistency: {
@@ -161,26 +210,22 @@ export function registerRoutes(app: Express): Server {
           totalEntries: recentEntries.length,
           averageEntriesPerWeek: (recentEntries.length / 4.28).toFixed(1),
           mostActiveDay,
-          completionRate: (entriesByDay.size / 30) * 100
+          completionRate: (entriesByDay.size / 30) * 100,
+          entryTimeDistribution
         },
         emotionalTrends: {
-          dominantEmotion: emotions.reduce((acc, curr) => {
-            const emotion = curr.sentiment >= 4 ? "Joy" :
-                          curr.sentiment <= 2 ? "Sadness" :
-                          "Neutral";
-            acc[emotion] = (acc[emotion] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>),
-          emotionalStability,
-          moodProgression: emotions
+          dominantEmotion: Object.fromEntries(
+            emotionFrequency.map(e => [e.emotion, e.count])
+          ),
+          emotionalStability: calculateEmotionalStability(recentEntries),
+          moodProgression: calculateMoodProgression(recentEntries),
+          emotionFrequency
         },
         topics: {
-          frequentThemes: Array.from(topicFrequency.entries())
-            .sort((a, b) => b[1].count - a[1].count)
-            .slice(0, 5)
-            .map(([topic]) => topic),
+          frequentThemes,
           emergingTopics,
-          decliningTopics
+          decliningTopics,
+          topicTimeline: calculateTopicTimeline(recentEntries)
         },
         recommendations
       });
@@ -192,6 +237,55 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
+
+  // Helper functions with proper typing
+  function calculateEmotionalStability(entries: ProcessedEntry[]): number {
+    const emotions = entries
+      .map(entry => entry.aiAnalysis?.sentiment ?? 3)
+      .sort((a: number, b: number) => a - b);
+
+    return emotions.length > 1
+      ? 1 - Math.min(1, (emotions.reduce((sum, curr, idx, arr) => {
+          if (idx === 0) return 0;
+          return sum + Math.abs(curr - arr[idx - 1]);
+        }, 0) / (emotions.length - 1)) / 4)
+      : 1;
+  }
+
+  function calculateMoodProgression(entries: ProcessedEntry[]): Array<{ date: string; sentiment: number }> {
+    return entries
+      .map(entry => ({
+        date: format(new Date(entry.createdAt), 'MMM d'),
+        sentiment: entry.aiAnalysis?.sentiment ?? 3
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  function calculateTopicTimeline(entries: ProcessedEntry[]): Array<{ date: string; topics: Array<{ name: string; count: number }> }> {
+    const timelineDays = Array.from({ length: 7 }, (_, i) =>
+      format(subDays(new Date(), i), 'MMM d')
+    );
+
+    return timelineDays.map(date => {
+      const dayEntries = entries.filter(entry =>
+        format(new Date(entry.createdAt), 'MMM d') === date
+      );
+
+      const topicCounts = new Map<string, number>();
+      dayEntries.forEach(entry => {
+        const topics = entry.aiAnalysis?.topics || [];
+        topics.forEach(topic => {
+          topicCounts.set(topic, (topicCounts.get(topic) || 0) + 1);
+        });
+      });
+
+      return {
+        date,
+        topics: Array.from(topicCounts.entries()).map(([name, count]) => ({ name, count }))
+      };
+    });
+  }
+
 
   // Protected upload and transcribe route
   app.post(

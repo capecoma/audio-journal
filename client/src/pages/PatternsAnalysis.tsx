@@ -2,9 +2,28 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, Calendar, Activity, LineChart, BookOpen, TrendingUp, TrendingDown } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Activity,
+  LineChart,
+  BookOpen,
+  TrendingUp,
+  TrendingDown,
+  BarChart2
+} from "lucide-react";
 import { Link } from "wouter";
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart as RechartsLineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
+} from "recharts";
 
 interface PatternAnalysis {
   consistency: {
@@ -13,16 +32,19 @@ interface PatternAnalysis {
     averageEntriesPerWeek: string;
     mostActiveDay: string | null;
     completionRate: number;
+    entryTimeDistribution: Array<{ hour: number; count: number }>;
   };
   emotionalTrends: {
-    dominantEmotion: Record<string, number> | null;
+    dominantEmotion: Record<string, number>;
     emotionalStability: number;
     moodProgression: Array<{ date: string; sentiment: number }>;
+    emotionFrequency: Array<{ emotion: string; count: number }>;
   };
   topics: {
-    frequentThemes: string[];
+    frequentThemes: Array<{ topic: string; frequency: number }>;
     emergingTopics: string[];
     decliningTopics: string[];
+    topicTimeline: Array<{ date: string; topics: Array<{ name: string; count: number }> }>;
   };
   recommendations: string[];
 }
@@ -74,6 +96,10 @@ export default function PatternsAnalysis() {
     );
   }
 
+  // Calculate highest frequency for scaling
+  const maxTopicFrequency = Math.max(...patterns.topics.frequentThemes.map(t => t.frequency));
+  const maxEmotionCount = Math.max(...patterns.emotionalTrends.emotionFrequency.map(e => e.count));
+
   return (
     <div className="container mx-auto p-8">
       <div className="flex items-center justify-between mb-8">
@@ -111,100 +137,117 @@ export default function PatternsAnalysis() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Emotional Stability</CardTitle>
-            <LineChart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Entry Frequency</CardTitle>
+            <BarChart2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {Math.round(patterns.emotionalTrends.emotionalStability * 100)}%
-            </div>
+            <div className="text-2xl font-bold">{patterns.consistency.averageEntriesPerWeek}/week</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Entries per Week</CardTitle>
+            <CardTitle className="text-sm font-medium">Most Active Day</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{patterns.consistency.averageEntriesPerWeek}</div>
+            <div className="text-2xl font-bold">{patterns.consistency.mostActiveDay || "N/A"}</div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="col-span-2">
+        {/* Topic Frequency Chart */}
+        <Card>
           <CardHeader>
-            <CardTitle>Mood Progression</CardTitle>
+            <CardTitle>Topic Frequency</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RechartsLineChart data={patterns.emotionalTrends.moodProgression}>
-                  <XAxis dataKey="date" />
-                  <YAxis domain={[1, 5]} />
+                <BarChart
+                  data={patterns.topics.frequentThemes}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                >
+                  <XAxis type="number" />
+                  <YAxis dataKey="topic" type="category" width={100} />
                   <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="sentiment"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                  />
-                </RechartsLineChart>
+                  <Bar dataKey="frequency" fill="hsl(var(--primary))">
+                    {patterns.topics.frequentThemes.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={`hsl(var(--primary) / ${0.3 + (0.7 * entry.frequency) / maxTopicFrequency})`}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
+        {/* Entry Time Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Topic Trends</CardTitle>
+            <CardTitle>Entry Time Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                  <TrendingUp className="inline-block mr-2 h-4 w-4" />
-                  Emerging Topics
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {patterns.topics.emergingTopics.map((topic) => (
-                    <span
-                      key={topic}
-                      className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full"
-                    >
-                      {topic}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                  <TrendingDown className="inline-block mr-2 h-4 w-4" />
-                  Declining Topics
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {patterns.topics.decliningTopics.map((topic) => (
-                    <span
-                      key={topic}
-                      className="px-2 py-1 bg-muted text-muted-foreground text-sm rounded-full"
-                    >
-                      {topic}
-                    </span>
-                  ))}
-                </div>
-              </div>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={patterns.consistency.entryTimeDistribution}>
+                  <XAxis
+                    dataKey="hour"
+                    tickFormatter={(hour) => `${hour}:00`}
+                  />
+                  <YAxis />
+                  <Tooltip
+                    labelFormatter={(hour) => `${hour}:00`}
+                    formatter={(value) => [`${value} entries`, 'Count']}
+                  />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
+        {/* Emotion Frequency */}
         <Card>
           <CardHeader>
-            <CardTitle>Recommendations</CardTitle>
+            <CardTitle>Emotion Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[200px]">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={patterns.emotionalTrends.emotionFrequency}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <XAxis dataKey="emotion" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="hsl(var(--primary))">
+                    {patterns.emotionalTrends.emotionFrequency.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={`hsl(var(--primary) / ${0.3 + (0.7 * entry.count) / maxEmotionCount})`}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recommendations */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Insights & Recommendations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
               <ul className="space-y-4">
                 {patterns.recommendations.map((recommendation, index) => (
                   <li key={index} className="flex items-start gap-2">

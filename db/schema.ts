@@ -9,7 +9,7 @@ export const userPreferencesSchema = z.object({
 
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
 
-// Keep existing user table definition
+// Keep existing user table definition with proper types
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -21,6 +21,20 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),
 });
+
+// Export types
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type SelectUser = typeof users.$inferSelect;
+
+// Schema validation with proper types
+export const insertUserSchema = createInsertSchema(users, {
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Must be a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+
+export const selectUserSchema = createSelectSchema(users);
 
 // Define progress type for achievements
 export const achievementProgressSchema = z.object({
@@ -119,8 +133,6 @@ export const summariesRelations = relations(summaries, ({ one }) => ({
 }));
 
 // Export types and schemas
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
 export type Summary = typeof summaries.$inferSelect;
@@ -131,12 +143,6 @@ export type UserAchievement = typeof userAchievements.$inferSelect;
 export type InsertUserAchievement = typeof userAchievements.$inferInsert;
 
 // Schema validation
-export const insertUserSchema = createInsertSchema(users, {
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Must be a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters")
-});
-export const selectUserSchema = createSelectSchema(users);
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
 export const insertSummarySchema = createInsertSchema(summaries);
