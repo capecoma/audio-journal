@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, jsonb, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -11,6 +11,17 @@ export const users = pgTable("users", {
   resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 });
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+export const insertUserSchema = createInsertSchema(users, {
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Must be a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const selectUserSchema = createSelectSchema(users);
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
@@ -37,15 +48,11 @@ export const summaries = pgTable("summaries", {
   keyInsights: jsonb("key_insights").$type<string[]>().default([]),
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
 export type Summary = typeof summaries.$inferSelect;
 export type InsertSummary = typeof summaries.$inferInsert;
 
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
 export const insertEntrySchema = createInsertSchema(entries);
 export const selectEntrySchema = createSelectSchema(entries);
 export const insertSummarySchema = createInsertSchema(summaries);
