@@ -69,9 +69,9 @@ export default function Dashboard() {
         "flex-1 pt-14",
         !isMobile && "md:pl-[240px]"
       )}>
-        <div className="container mx-auto p-4 space-y-6 max-w-7xl">
+        <div className="container mx-auto px-3 py-4 space-y-4 max-w-7xl sm:px-4 sm:py-6 sm:space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-card border p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-background border border-border/40 p-3 sm:p-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-medium">Welcome Back</h2>
               <p className="text-sm sm:text-base text-muted-foreground mt-1">
@@ -93,11 +93,11 @@ export default function Dashboard() {
           </div>
 
           {/* Content Grid */}
-          <div className="space-y-6 sm:space-y-8">
-            <div className="rounded-lg border bg-card p-4 sm:p-6">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
               <DailySummary summaries={summaries} />
             </div>
-            <div className="rounded-lg border bg-card p-4 sm:p-6">
+            <div className="rounded-lg border border-border/40 bg-background p-3 sm:p-4">
               <EntryList 
                 entries={entries} 
                 onPlay={handlePlayEntry}
