@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, type SelectUser } from "@db/schema";
+import { users as usersTable, insertUserSchema, type SelectUser } from "@db/schema";
 import { getDb } from "@db";
 import { eq, or } from "drizzle-orm";
 
@@ -37,10 +37,13 @@ declare global {
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID || "porygon-supremacy",
+    secret: process.env.SESSION_SECRET || process.env.REPL_ID || "development-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {},
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
@@ -48,9 +51,6 @@ export function setupAuth(app: Express) {
 
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
-    sessionSettings.cookie = {
-      secure: true,
-    };
   }
 
   app.use(session(sessionSettings));
@@ -61,22 +61,17 @@ export function setupAuth(app: Express) {
     new LocalStrategy(async (username, password, done) => {
       try {
         const db = getDb();
-        // Try to find user by username or email
-        const [user] = await db
-          .select({
-            id: users.id,
-            username: users.username,
-            email: users.email,
-            password: users.password,
-          })
-          .from(users)
-          .where(or(eq(users.username, username), eq(users.email, username)))
+        const foundUsers = await db
+          .select()
+          .from(usersTable)
+          .where(or(eq(usersTable.username, username), eq(usersTable.email, username)))
           .limit(1);
 
-        if (!user) {
+        if (!foundUsers.length) {
           return done(null, false, { message: "Invalid username or email." });
         }
 
+        const user = foundUsers[0];
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: "Invalid password." });
@@ -95,12 +90,16 @@ export function setupAuth(app: Express) {
   passport.deserializeUser(async (id: number, done) => {
     try {
       const db = getDb();
-      const [user] = await db
+      const foundUsers = await db
         .select()
-        .from(users)
-        .where(eq(users.id, id))
+        .from(usersTable)
+        .where(eq(usersTable.id, id))
         .limit(1);
-      done(null, user);
+
+      if (!foundUsers.length) {
+        return done(null, false);
+      }
+      done(null, foundUsers[0]);
     } catch (err) {
       done(err);
     }
@@ -110,45 +109,34 @@ export function setupAuth(app: Express) {
     try {
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        return res
-          .status(400)
-          .json({ 
-            error: "Invalid input",
-            details: result.error.issues.map(i => i.message)
-          });
+        return res.status(400).json({ 
+          error: "Invalid input",
+          details: result.error.issues.map(i => i.message)
+        });
       }
 
-      const { username, email, password } = result.data;
       const db = getDb();
+      const { username, email, password } = result.data;
 
-      // Check if username already exists
-      const [existingUsername] = await db
+      // Check for existing username or email
+      const existingUsers = await db
         .select()
-        .from(users)
-        .where(eq(users.username, username))
+        .from(usersTable)
+        .where(or(eq(usersTable.username, username), eq(usersTable.email, email)))
         .limit(1);
 
-      if (existingUsername) {
-        return res.status(400).json({ error: "Username already exists" });
+      if (existingUsers.length) {
+        return res.status(400).json({ 
+          error: existingUsers[0].username === username 
+            ? "Username already exists" 
+            : "Email already exists" 
+        });
       }
 
-      // Check if email already exists
-      const [existingEmail] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (existingEmail) {
-        return res.status(400).json({ error: "Email already exists" });
-      }
-
-      // Hash the password
+      // Hash password and create user
       const hashedPassword = await crypto.hash(password);
-
-      // Create the new user with default preferences
       const [newUser] = await db
-        .insert(users)
+        .insert(usersTable)
         .values({
           username,
           email,
@@ -158,14 +146,17 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
-      // Log the user in after registration
       req.login(newUser, (err) => {
         if (err) {
           return next(err);
         }
         return res.json({
           ok: true,
-          user: { id: newUser.id, username: newUser.username, email: newUser.email },
+          user: { 
+            id: newUser.id, 
+            username: newUser.username, 
+            email: newUser.email 
+          }
         });
       });
     } catch (error) {
@@ -174,7 +165,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
+    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: IVerifyOptions) => {
       if (err) {
         return next(err);
       }
@@ -186,14 +177,18 @@ export function setupAuth(app: Express) {
         });
       }
 
-      req.logIn(user, (err) => {
+      req.login(user, (err) => {
         if (err) {
           return next(err);
         }
 
         return res.json({
           ok: true,
-          user: { id: user.id, username: user.username, email: user.email },
+          user: { 
+            id: user.id, 
+            username: user.username, 
+            email: user.email 
+          }
         });
       });
     })(req, res, next);
@@ -212,14 +207,15 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    if (req.isAuthenticated()) {
-      const user = req.user;
-      return res.json({
-        id: user.id,
-        username: user.username,
-        email: user.email
-      });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not logged in" });
     }
-    res.status(401).json({ error: "Not logged in" });
+
+    const user = req.user;
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email
+    });
   });
 }

@@ -2,7 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
-import { initDb, getDb } from "@db";
+import { initDb } from "@db";
+import { users as usersTable } from "@db/schema";
 
 const app = express();
 
@@ -55,14 +56,9 @@ app.use((req, res, next) => {
 // Initialize application
 async function startServer() {
   try {
-    // Initialize database first
-    await initDb();
+    // Initialize database with retries
+    const db = await initDb();
     log("Database initialized successfully");
-
-    // Verify database connection
-    const db = getDb();
-    await db.select().from(users).limit(1);
-    log("Database connection verified");
 
     // Setup authentication after database is ready
     setupAuth(app);
@@ -71,7 +67,7 @@ async function startServer() {
     const server = registerRoutes(app);
 
     // Enhanced error handling middleware
-    app.use((err: AppError, req: Request, res: Response, _next: NextFunction) => {
+    app.use((err: AppError, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const errorResponse = {
         message: err.message || "Internal Server Error",
@@ -84,8 +80,6 @@ async function startServer() {
       // Log error details
       console.error(`Error [${status}]:`, {
         message: err.message,
-        path: req.path,
-        method: req.method,
         ...(process.env.NODE_ENV === "development" && { stack: err.stack })
       });
 
@@ -93,7 +87,7 @@ async function startServer() {
     });
 
     // Setup Vite for development or serve static files for production
-    if (process.env.NODE_ENV === "development") {
+    if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
