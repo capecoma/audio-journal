@@ -1,16 +1,20 @@
 import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
   email: text("email").unique().notNull(),
   password: text("password").notNull(),
-  resetToken: text("reset_token"),
-  resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 });
+
+export const usersRelations = relations(users, ({ many }) => ({
+  entries: many(entries),
+  summaries: many(summaries)
+}));
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -25,7 +29,7 @@ export const selectUserSchema = createSelectSchema(users);
 
 export const entries = pgTable("entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
   audioUrl: text("audio_url").notNull(),
   transcript: text("transcript"),
   duration: integer("duration"),
@@ -39,9 +43,16 @@ export const entries = pgTable("entries", {
   }>().default({}),
 });
 
+export const entriesRelations = relations(entries, ({ one }) => ({
+  user: one(users, {
+    fields: [entries.userId],
+    references: [users.id],
+  }),
+}));
+
 export const summaries = pgTable("summaries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
   date: timestamp("date", { mode: 'string' }).notNull(),
   highlightText: text("highlight_text").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
@@ -49,6 +60,13 @@ export const summaries = pgTable("summaries", {
   topicAnalysis: jsonb("topic_analysis").$type<string[]>().default([]),
   keyInsights: jsonb("key_insights").$type<string[]>().default([]),
 });
+
+export const summariesRelations = relations(summaries, ({ one }) => ({
+  user: one(users, {
+    fields: [summaries.userId],
+    references: [users.id],
+  }),
+}));
 
 export type Entry = typeof entries.$inferSelect;
 export type InsertEntry = typeof entries.$inferInsert;
