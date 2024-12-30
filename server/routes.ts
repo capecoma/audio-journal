@@ -24,6 +24,14 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 };
 
+// Middleware to ensure user is authenticated
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  next();
+};
+
 export function registerRoutes(app: Express): Server {
   // Health check endpoint
   app.get("/api/health", asyncHandler(async (_req, res) => {
@@ -37,14 +45,50 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get user entries
+  app.get("/api/entries", requireAuth, asyncHandler(async (req, res) => {
+    const db = getDb();
+    try {
+      const userEntries = await db
+        .select()
+        .from(entries)
+        .where(eq(entries.userId, req.user!.id))
+        .orderBy(desc(entries.createdAt));
+
+      res.json(userEntries);
+    } catch (error) {
+      throw new APIError("Failed to fetch user entries", 500, error);
+    }
+  }));
+
+  // Get daily summaries for user
+  app.get("/api/summaries/daily", requireAuth, asyncHandler(async (req, res) => {
+    const db = getDb();
+    try {
+      const userSummaries = await db
+        .select()
+        .from(summaries)
+        .where(eq(summaries.userId, req.user!.id))
+        .orderBy(desc(summaries.date));
+
+      res.json(userSummaries);
+    } catch (error) {
+      throw new APIError("Failed to fetch user summaries", 500, error);
+    }
+  }));
+
   // Analytics endpoint
-  app.get("/api/analytics", asyncHandler(async (_req, res) => {
+  app.get("/api/analytics", requireAuth, asyncHandler(async (req, res) => {
     const db = getDb();
 
     try {
       const [entriesData, summariesData] = await Promise.all([
-        db.select().from(entries),
-        db.select().from(summaries)
+        db.select()
+          .from(entries)
+          .where(eq(entries.userId, req.user!.id)),
+        db.select()
+          .from(summaries)
+          .where(eq(summaries.userId, req.user!.id))
       ]);
 
       const analyticsData = {
