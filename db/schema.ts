@@ -3,6 +3,12 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+export const userPreferencesSchema = z.object({
+  aiJournalingEnabled: z.boolean().default(false)
+});
+
+export type UserPreferences = z.infer<typeof userPreferencesSchema>;
+
 // Keep existing user table definition
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -10,7 +16,7 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   password: text("password").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
-  preferences: jsonb("preferences").default({ aiJournalingEnabled: false }).notNull(),
+  preferences: jsonb("preferences").$type<UserPreferences>().default({ aiJournalingEnabled: false }).notNull(),
   googleId: text("google_id"),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),

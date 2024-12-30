@@ -4,11 +4,12 @@ import multer from "multer";
 import { transcribeAudio, generateTags, generateSummary, analyzeContent, generateReflectionPrompt, analyzeJournalingPatterns } from "./ai";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { db } from "@db";
-import { entries, summaries, users, achievements, userAchievements } from "@db/schema";
+import { entries, summaries, users, achievements, userAchievements, UserPreferences } from "@db/schema";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import type { Entry, Summary, Achievement, UserAchievement } from "@db/schema";
 import { setupAuth } from "./auth";
 import { isAuthenticated, getUserId } from "./middleware/auth";
+import { trackAchievements } from "./middleware/achievements";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -24,14 +25,14 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Health check failed:", error);
-      res.status(500).json({ 
-        status: "unhealthy", 
-        details: error.message 
+      res.status(500).json({
+        status: "unhealthy",
+        details: error.message
       });
     }
   });
 
-  // Get all achievements with user progress
+  // Protected achievements route
   app.get("/api/achievements", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -63,85 +64,166 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching achievements:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch achievements", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to fetch achievements",
+        details: error.message
       });
     }
   });
 
-  // Update achievement progress
-  app.post("/api/achievements/:id/progress", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const achievementId = parseInt(req.params.id);
-      const { progress } = req.body;
+  // Protected upload and transcribe route with achievement tracking
+  app.post(
+    "/api/entries/upload",
+    isAuthenticated,
+    upload.single("audio"),
+    trackAchievements('entry_created'),
+    async (req, res) => {
+      try {
+        const userId = getUserId(req);
 
-      if (!progress || typeof progress.current !== 'number' || typeof progress.target !== 'number') {
-        return res.status(400).json({ error: "Invalid progress data" });
-      }
+        if (!req.file) {
+          return res.status(400).json({ error: "No audio file provided" });
+        }
 
-      // Get the achievement
-      const achievement = await db.query.achievements.findFirst({
-        where: eq(achievements.id, achievementId)
-      });
+        const audioBuffer = req.file.buffer;
+        const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
 
-      if (!achievement) {
-        return res.status(404).json({ error: "Achievement not found" });
-      }
+        // Transcribe the audio
+        console.log('Starting transcription...');
+        const transcript = await transcribeAudio(audioBuffer);
+        console.log('Transcription completed:', transcript);
 
-      // Calculate progress percentage
-      const percent = Math.min(100, (progress.current / progress.target) * 100);
+        // Generate tags for the transcript
+        console.log('Generating tags...');
+        const tags = await generateTags(transcript);
+        console.log('Tags generated:', tags);
 
-      // Update or create user achievement progress
-      const existingProgress = await db.query.userAchievements.findFirst({
-        where: and(
-          eq(userAchievements.userId, userId),
-          eq(userAchievements.achievementId, achievementId)
-        )
-      });
+        // Perform AI analysis and track achievement
+        console.log('Performing AI analysis...');
+        const aiAnalysis = await analyzeContent(transcript);
+        console.log('AI analysis completed:', aiAnalysis);
 
-      if (existingProgress) {
-        const [updated] = await db
-          .update(userAchievements)
-          .set({
-            progress: {
-              current: progress.current,
-              target: progress.target,
-              percent
-            },
-            ...(percent >= 100 && !existingProgress.earnedAt ? { earnedAt: new Date().toISOString() } : {})
-          })
-          .where(eq(userAchievements.id, existingProgress.id))
-          .returning();
+        const currentDate = new Date().toISOString();
 
-        res.json(updated);
-      } else {
-        const [created] = await db
-          .insert(userAchievements)
+        // Insert new entry
+        const [entry] = await db.insert(entries)
           .values({
             userId,
-            achievementId,
-            progress: {
-              current: progress.current,
-              target: progress.target,
-              percent
-            },
-            earnedAt: percent >= 100 ? new Date().toISOString() : null
+            audioUrl,
+            transcript,
+            tags,
+            duration: Math.round((audioBuffer.length * 8) / 32000),
+            isProcessed: true,
+            createdAt: currentDate,
+            aiAnalysis: {
+              sentiment: aiAnalysis.sentiment,
+              topics: aiAnalysis.topics,
+              insights: aiAnalysis.insights
+            }
           })
           .returning();
 
-        res.json(created);
+        // Track emotion analysis achievement
+        await checkAchievements(userId, 'emotion_analyzed');
+
+        // Get all entries for today to generate a summary
+        const todayStart = startOfDay(new Date()).toISOString();
+        const todayEnd = endOfDay(new Date()).toISOString();
+
+        console.log('Fetching today\'s entries between:', todayStart, 'and', todayEnd);
+
+        const todayEntries = await db.select()
+          .from(entries)
+          .where(
+            and(
+              eq(entries.userId, userId),
+              gte(entries.createdAt, todayStart),
+              lt(entries.createdAt, todayEnd)
+            )
+          );
+
+        console.log(`Found ${todayEntries.length} entries for today`);
+
+        if (todayEntries.length > 0) {
+          const transcripts = todayEntries
+            .filter(e => e.transcript)
+            .map(e => e.transcript as string);
+
+          console.log('Generating daily summary...');
+          const summaryText = await generateSummary(transcripts);
+          console.log('Summary generated:', summaryText);
+
+          // Calculate average sentiment and collect all topics
+          const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
+          const averageSentiment = entriesWithAnalysis.length > 0
+            ? Math.round(
+              entriesWithAnalysis.reduce((acc, e) => {
+                const sentiment = e.aiAnalysis?.sentiment;
+                return acc + (typeof sentiment === 'number' ? sentiment : 0);
+              }, 0) / entriesWithAnalysis.length
+            )
+            : null;
+
+          const allTopics = entriesWithAnalysis.flatMap(e => {
+            const topics = e.aiAnalysis?.topics;
+            return Array.isArray(topics) ? topics : [];
+          });
+
+          const topicFrequency = allTopics.reduce((acc, topic) => {
+            acc[topic] = (acc[topic] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+
+          const topTopics = Object.entries(topicFrequency)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([topic]) => topic);
+
+          // Update or create today's summary
+          const existingSummary = await db.select()
+            .from(summaries)
+            .where(
+              and(
+                eq(summaries.userId, userId),
+                gte(summaries.date, todayStart),
+                lt(summaries.date, todayEnd)
+              )
+            )
+            .limit(1);
+
+          if (existingSummary.length > 0) {
+            await db.update(summaries)
+              .set({
+                highlightText: summaryText,
+                sentimentScore: averageSentiment,
+                topicAnalysis: topTopics,
+                keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+              })
+              .where(eq(summaries.id, existingSummary[0].id));
+          } else {
+            await db.insert(summaries)
+              .values({
+                userId,
+                date: todayStart,
+                highlightText: summaryText,
+                createdAt: currentDate,
+                sentimentScore: averageSentiment,
+                topicAnalysis: topTopics,
+                keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
+              });
+          }
+        }
+
+        res.json(entry);
+      } catch (error: any) {
+        console.error('Error processing entry:', error);
+        res.status(500).json({
+          error: error.message || "Failed to process entry",
+          details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
       }
-    } catch (err) {
-      const error = err as Error;
-      console.error("Error updating achievement progress:", error);
-      res.status(500).json({ 
-        error: "Failed to update achievement progress", 
-        details: error.message 
-      });
     }
-  });
+  );
 
   // Protected entries route with detailed logging
   app.get("/api/entries", isAuthenticated, async (req, res) => {
@@ -167,9 +249,9 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching entries:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch entries", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to fetch entries",
+        details: error.message
       });
     }
   });
@@ -188,163 +270,19 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       const error = err as Error;
       console.error("Error fetching summaries:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch summaries", 
-        details: error.message 
-      });
-    }
-  });
-
-  // Protected upload and transcribe route
-  app.post("/api/entries/upload", isAuthenticated, upload.single("audio"), async (req, res) => {
-    try {
-      const userId = getUserId(req);
-
-      if (!req.file) {
-        return res.status(400).json({ error: "No audio file provided" });
-      }
-
-      const audioBuffer = req.file.buffer;
-      const audioUrl = `data:audio/webm;base64,${audioBuffer.toString('base64')}`;
-
-      // Transcribe the audio
-      console.log('Starting transcription...');
-      const transcript = await transcribeAudio(audioBuffer);
-      console.log('Transcription completed:', transcript);
-
-      // Generate tags for the transcript
-      console.log('Generating tags...');
-      const tags = await generateTags(transcript);
-      console.log('Tags generated:', tags);
-
-      // Perform AI analysis
-      console.log('Performing AI analysis...');
-      const aiAnalysis = await analyzeContent(transcript);
-      console.log('AI analysis completed:', aiAnalysis);
-
-      const currentDate = new Date().toISOString();
-
-      // Insert new entry
-      const [entry] = await db.insert(entries)
-        .values({
-          userId,
-          audioUrl,
-          transcript,
-          tags,
-          duration: Math.round((audioBuffer.length * 8) / 32000),
-          isProcessed: true,
-          createdAt: currentDate,
-          aiAnalysis: {
-            sentiment: aiAnalysis.sentiment,
-            topics: aiAnalysis.topics,
-            insights: aiAnalysis.insights
-          }
-        })
-        .returning();
-
-      // Get all entries for today to generate a summary
-      const todayStart = startOfDay(new Date()).toISOString();
-      const todayEnd = endOfDay(new Date()).toISOString();
-
-      console.log('Fetching today\'s entries between:', todayStart, 'and', todayEnd);
-
-      const todayEntries = await db.select()
-        .from(entries)
-        .where(
-          and(
-            eq(entries.userId, userId),
-            gte(entries.createdAt, todayStart),
-            lt(entries.createdAt, todayEnd)
-          )
-        );
-
-      console.log(`Found ${todayEntries.length} entries for today`);
-
-      if (todayEntries.length > 0) {
-        const transcripts = todayEntries
-          .filter(e => e.transcript)
-          .map(e => e.transcript as string);
-
-        console.log('Generating daily summary...');
-        const summaryText = await generateSummary(transcripts);
-        console.log('Summary generated:', summaryText);
-
-        // Calculate average sentiment and collect all topics
-        const entriesWithAnalysis = todayEntries.filter(e => e.aiAnalysis);
-        const averageSentiment = entriesWithAnalysis.length > 0 
-          ? Math.round(
-              entriesWithAnalysis.reduce((acc, e) => {
-                const sentiment = e.aiAnalysis?.sentiment;
-                return acc + (typeof sentiment === 'number' ? sentiment : 0);
-              }, 0) / entriesWithAnalysis.length
-            )
-          : null;
-
-        const allTopics = entriesWithAnalysis.flatMap(e => {
-          const topics = e.aiAnalysis?.topics;
-          return Array.isArray(topics) ? topics : [];
-        });
-
-        const topicFrequency = allTopics.reduce((acc, topic) => {
-          acc[topic] = (acc[topic] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const topTopics = Object.entries(topicFrequency)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-          .map(([topic]) => topic);
-
-        // Update or create today's summary
-        const existingSummary = await db.select()
-          .from(summaries)
-          .where(
-            and(
-              eq(summaries.userId, userId),
-              gte(summaries.date, todayStart),
-              lt(summaries.date, todayEnd)
-            )
-          )
-          .limit(1);
-
-        if (existingSummary.length > 0) {
-          await db.update(summaries)
-            .set({
-              highlightText: summaryText,
-              sentimentScore: averageSentiment,
-              topicAnalysis: topTopics,
-              keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
-            })
-            .where(eq(summaries.id, existingSummary[0].id));
-        } else {
-          await db.insert(summaries)
-            .values({
-              userId,
-              date: todayStart,
-              highlightText: summaryText,
-              createdAt: currentDate,
-              sentimentScore: averageSentiment,
-              topicAnalysis: topTopics,
-              keyInsights: entriesWithAnalysis[0]?.aiAnalysis?.insights || []
-            });
-        }
-      }
-
-      res.json(entry);
-    } catch (error: any) {
-      console.error('Error processing entry:', error);
       res.status(500).json({
-        error: error.message || "Failed to process entry",
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: "Failed to fetch summaries",
+        details: error.message
       });
     }
   });
+
 
   // New endpoint to toggle AI journaling feature
   app.post("/api/preferences/ai-journaling", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const { enabled } = req.body;
+      const { enabled } = req.body as { enabled: boolean };
 
       if (typeof enabled !== 'boolean') {
         return res.status(400).json({ error: "Invalid input. 'enabled' must be a boolean value." });
@@ -360,9 +298,10 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, userId))
         .returning();
 
+      const preferences = user.preferences as UserPreferences;
       res.json({
         success: true,
-        preferences: user.preferences
+        preferences
       });
     } catch (error: any) {
       console.error("Error updating AI journaling preference:", error);
@@ -385,7 +324,8 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, userId))
         .limit(1);
 
-      if (!user.preferences?.aiJournalingEnabled) {
+      const preferences = user.preferences as UserPreferences;
+      if (!preferences.aiJournalingEnabled) {
         return res.status(403).json({
           error: "AI journaling feature is not enabled",
           message: "Enable AI journaling in your preferences to access this feature"
@@ -430,7 +370,8 @@ export function registerRoutes(app: Express): Server {
         .where(eq(users.id, userId))
         .limit(1);
 
-      if (!user.preferences?.aiJournalingEnabled) {
+      const preferences = user.preferences as UserPreferences;
+      if (!preferences.aiJournalingEnabled) {
         return res.status(403).json({
           error: "AI journaling feature is not enabled",
           message: "Enable AI journaling in your preferences to access this feature"
@@ -438,7 +379,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Get entries from the last 30 days
-      const entries = await db.query.entries.findMany({
+      const userEntries = await db.query.entries.findMany({
         where: and(
           eq(entries.userId, userId),
           gte(entries.createdAt, subDays(new Date(), 30).toISOString())
@@ -446,7 +387,7 @@ export function registerRoutes(app: Express): Server {
         orderBy: [desc(entries.createdAt)]
       });
 
-      const entriesForAnalysis = entries.map(entry => ({
+      const entriesForAnalysis = userEntries.map(entry => ({
         transcript: entry.transcript || "",
         createdAt: entry.createdAt,
         sentiment: entry.aiAnalysis?.sentiment || 3
@@ -465,4 +406,21 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+async function checkAchievements(userId: number, achievementName: string) {
+  //  This is a placeholder,  replace with actual achievement checking logic
+  //  This would involve querying the database to see if the user has already earned the achievement and update if necessary.
+  console.log(`Checking achievement '${achievementName}' for user ${userId}`);
+  try {
+    const achievement = await db.query.achievements.findFirst({ where: eq(achievements.name, achievementName) });
+    if (achievement) {
+      const existingProgress = await db.query.userAchievements.findFirst({ where: and(eq(userAchievements.userId, userId), eq(userAchievements.achievementId, achievement.id)) });
+      if (!existingProgress) {
+        await db.insert(userAchievements).values({ userId, achievementId: achievement.id, progress: { current: 1, target: 1, percent: 100 }, earnedAt: new Date().toISOString() });
+      }
+    }
+  } catch (err) {
+    console.error("Error checking achievements:", err);
+  }
 }

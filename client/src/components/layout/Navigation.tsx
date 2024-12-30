@@ -2,7 +2,15 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MicIcon, BarChart2, Menu, LogOut, Trophy } from "lucide-react";
+import { MicIcon, BarChart2, Menu, LogOut, User, Settings, Trophy } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Drawer,
   DrawerClose,
@@ -12,14 +20,16 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUser } from "@/hooks/use-user";
+import type { UserContextType } from "@/types/auth";
 
 export default function Navigation() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
-  const { user, logout } = useUser();
+  const { user, logout } = useUser() as UserContextType;
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: BarChart2 },
@@ -37,7 +47,7 @@ export default function Navigation() {
   };
 
   const NavContent = () => (
-    <div className="flex flex-col gap-2">
+    <div className="space-y-2">
       {navItems.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href}>
           <Button
@@ -56,6 +66,42 @@ export default function Navigation() {
         </Link>
       ))}
     </div>
+  );
+
+  const UserDropdown = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 w-8 rounded-full">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="bg-primary/10 text-primary">
+              {user?.username?.[0]?.toUpperCase() ?? '?'}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{user?.username}</p>
+            <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled>
+          <User className="mr-2 h-4 w-4" />
+          <span>Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Settings</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   return (
@@ -89,22 +135,7 @@ export default function Navigation() {
             ) : null}
             <h1 className="text-lg font-semibold">Audio Journal</h1>
           </div>
-          {user && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">
-                {user.username}
-              </span>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={handleLogout}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="sr-only">Logout</span>
-              </Button>
-            </div>
-          )}
+          {user && <UserDropdown />}
         </div>
       </header>
 
