@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Home, LogOut } from "lucide-react";
 import { Suspense, lazy } from "react";
 import { useUser } from "./hooks/use-user";
+import Navigation from "./components/layout/Navigation";
 import AuthPage from "./pages/AuthPage";
 
 // Lazy load page components
@@ -39,38 +40,33 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <nav className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost">Dashboard</Button>
-            </Link>
-            <Link href="/journal">
-              <Button variant="ghost">Journal</Button>
-            </Link>
-            <Link href="/analytics">
-              <Button variant="ghost">Analytics</Button>
-            </Link>
-          </nav>
-          <Button 
-            variant="outline" 
-            onClick={() => logout()}
-            className="flex items-center gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
+      <Navigation />
+
+      {/* Main content area */}
+      <main className="flex-1 mt-14 md:pl-[240px]">
+        <div className="container max-w-[1600px] mx-auto p-4">
+          {/* User actions in top right */}
+          <div className="flex justify-end mb-4">
+            <Button 
+              variant="outline" 
+              onClick={() => logout()}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+
+          {/* Page content */}
+          <Suspense fallback={<LoadingPage />}>
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/journal" component={Journal} />
+              <Route path="/analytics" component={Analytics} />
+              <Route component={NotFound} />
+            </Switch>
+          </Suspense>
         </div>
-      </header>
-      <main className="flex-1">
-        <Suspense fallback={<LoadingPage />}>
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/journal" component={Journal} />
-            <Route path="/analytics" component={Analytics} />
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
       </main>
     </div>
   );
@@ -78,7 +74,7 @@ function App() {
 
 function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+    <div className="min-h-[calc(100vh-3.5rem)] w-full flex items-center justify-center">
       <Card className="w-full max-w-md mx-4">
         <CardContent className="pt-6 space-y-4">
           <div className="flex items-center gap-2">
